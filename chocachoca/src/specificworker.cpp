@@ -75,18 +75,37 @@ void SpecificWorker::initialize(int period)
 
 void SpecificWorker::compute()
 {
-	//computeCODE
-	//QMutexLocker locker(mutex);
-	//try
-	//{
-	//  camera_proxy->getYImage(0,img, cState, bState);
-	//  memcpy(image_gray.data, &img[0], m_width*m_height*sizeof(uchar));
-	//  searchTags(image_gray);
-	//}
-	//catch(const Ice::Exception &e)
-	//{
-	//  std::cout << "Error reading from Camera" << e << std::endl;
-	//}
+	try
+	{
+        auto ldata = lidar3d_proxy->getLidarData("pearl", 0, 360, 1).points;
+
+        decltype(ldata) vectorPoints;
+
+        std::copy_if(
+                ldata.begin(),
+                ldata.end(),
+                std::back_inserter(vectorPoints),
+                [](auto a){return sqrt(a.x*a.x + a.y*a.y + a.z*a.z) >= 300;});
+
+        if (vectorPoints.empty()) return;
+
+//        int offset = vectorPoints.size()/2 - vectorPoints.size()/5;
+        int offset = 0;
+
+        auto primer_elemento = *std::min_element(vectorPoints.begin()+offset,
+                  vectorPoints.end()-offset,
+                  []( auto& a,  auto& b){
+            return (a.x*a.x + a.y*a.y + a.z*a.z) < (b.x*b.x + b.y*b.y + b.z*b.z);});
+
+
+        qInfo() << sqrt(primer_elemento.x*primer_elemento.x +
+                        primer_elemento.y*primer_elemento.y +
+                        primer_elemento.z*primer_elemento.z);
+	}
+	catch(const Ice::Exception &e)
+	{
+	  std::cout << "Error reading from Camera" << e << std::endl;
+	}
 	
 	
 }
