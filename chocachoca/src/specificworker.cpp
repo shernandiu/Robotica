@@ -68,7 +68,11 @@ void SpecificWorker::initialize(int period)
 	}
 	else
 	{
+        viewer = new AbstractGraphicViewer(this, QRectF(-5000, -5000, 10000, 10000));
+        viewer->add_robot(460,480,0,100,QColor("Blue"));
+        viewer->show();
 		timer.start(Period);
+
 	}
 
 }
@@ -77,7 +81,7 @@ void SpecificWorker::compute()
 {
 	try
 	{
-        auto ldata = lidar3d_proxy->getLidarData("pearl", 0, 360, 1).points;
+        auto ldata = lidar3d_proxy->getLidarData("pearl", 0, 360, 3).points;
 
         decltype(ldata) vectorPoints;
 
@@ -85,12 +89,15 @@ void SpecificWorker::compute()
                 ldata.begin(),
                 ldata.end(),
                 std::back_inserter(vectorPoints),
-                [](auto a){return sqrt(a.x*a.x + a.y*a.y + a.z*a.z) >= 300;});
-
+//                [](auto a){return std::sqrt(a.x*a.x + a.y*a.y + a.z*a.z) >= 300;});
+               [](auto a){return a.z>1;});
+//
         if (vectorPoints.empty()) return;
 
-//        int offset = vectorPoints.size()/2 - vectorPoints.size()/5;
-        int offset = 0;
+        draw_lidar(vectorPoints, viewer);
+
+        int offset = vectorPoints.size()/2 - vectorPoints.size()/5;
+//        int offset = 0;
 
         auto primer_elemento = *std::min_element(vectorPoints.begin()+offset,
                   vectorPoints.end()-offset,
@@ -115,6 +122,26 @@ int SpecificWorker::startup_check()
 	std::cout << "Startup check" << std::endl;
 	QTimer::singleShot(200, qApp, SLOT(quit()));
 	return 0;
+}
+
+void SpecificWorker::draw_lidar(RoboCompLidar3D::TPoints points, AbstractGraphicViewer* scene) {
+    static std::vector<QGraphicsItem*> borrar;
+//    std::for_each(borrar.begin(),borrar.end(),[this](auto a){viewer->scene.removeItem(a);});
+
+
+    for (auto& p: borrar) {
+        viewer->scene.removeItem(p);
+        delete p;
+    }
+
+
+    borrar.clear();
+
+    for(const auto& p: points){
+        auto point  =viewer->scene.addRect(-25, -25, 50, 50, QPen(QColor("Green")), QBrush(QColor("Green")));
+        point->setPos(p.x*1000,p.y*1000);
+        borrar.push_back(point);
+    }
 }
 
 
