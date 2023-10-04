@@ -18,6 +18,7 @@
  */
 #include "specificworker.h"
 
+
 /**
 * \brief Default constructor
 */
@@ -71,6 +72,7 @@ void SpecificWorker::initialize(int period)
         viewer = new AbstractGraphicViewer(this, QRectF(-5000, -5000, 10000, 10000));
         viewer->add_robot(460,480,0,100,QColor("Blue"));
         viewer->show();
+        viewer->activateWindow();
 		timer.start(Period);
 
 	}
@@ -81,7 +83,9 @@ void SpecificWorker::compute()
 {
 	try
 	{
-        auto ldata = lidar3d_proxy->getLidarData("pearl", 0, 360, 3).points;
+        auto ldata = lidar3d_proxy->getLidarData("bpearl", 0, 2*M_PI, 1).points;
+
+        qInfo()<<ldata.size();
 
         decltype(ldata) vectorPoints;
 
@@ -89,12 +93,15 @@ void SpecificWorker::compute()
                 ldata.begin(),
                 ldata.end(),
                 std::back_inserter(vectorPoints),
-//                [](auto a){return std::sqrt(a.x*a.x + a.y*a.y + a.z*a.z) >= 300;});
-               [](auto a){return a.z>1;});
-//
+                [](auto a){return a.z < 2000;});
         if (vectorPoints.empty()) return;
 
+
+
         draw_lidar(vectorPoints, viewer);
+
+        ///control
+
 
         int offset = vectorPoints.size()/2 - vectorPoints.size()/5;
 //        int offset = 0;
@@ -102,7 +109,7 @@ void SpecificWorker::compute()
         auto primer_elemento = *std::min_element(vectorPoints.begin()+offset,
                   vectorPoints.end()-offset,
                   []( auto& a,  auto& b){
-            return (a.x*a.x + a.y*a.y + a.z*a.z) < (b.x*b.x + b.y*b.y + b.z*b.z);});
+            return std::hypot(a.x,a.y,a.z) < std::hypot(b.x,b.y,b.z);});
 
 
         qInfo() << sqrt(primer_elemento.x*primer_elemento.x +
@@ -138,8 +145,8 @@ void SpecificWorker::draw_lidar(RoboCompLidar3D::TPoints points, AbstractGraphic
     borrar.clear();
 
     for(const auto& p: points){
-        auto point  =viewer->scene.addRect(-25, -25, 50, 50, QPen(QColor("Green")), QBrush(QColor("Green")));
-        point->setPos(p.x*1000,p.y*1000);
+        auto point  =viewer->scene.addRect(-50, -50, 100, 100, QPen(QColor("Green")), QBrush(QColor("Green")));
+        point->setPos(p.x,p.y);
         borrar.push_back(point);
     }
 }
