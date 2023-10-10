@@ -81,11 +81,16 @@ void SpecificWorker::initialize(int period)
 
 void SpecificWorker::compute()
 {
+    RoboCompLidar3D::TPoints ldata;
 	try
-	{
-        auto ldata = lidar3d_proxy->getLidarData("bpearl", 0, 2*M_PI, 1).points;
-
-        qInfo()<<ldata.size();
+    {
+        ldata = lidar3d_proxy->getLidarData("bpearl", 0, 2 * M_PI, 1).points;
+        qInfo() << ldata.size();
+    }
+    catch(const Ice::Exception &e)
+    {
+        std::cout << "Error reading from Camera" << e << std::endl;
+    }
 
         decltype(ldata) vectorPoints;
 
@@ -94,6 +99,7 @@ void SpecificWorker::compute()
                 ldata.end(),
                 std::back_inserter(vectorPoints),
                 [](auto a){return a.z < 2000;});
+//                [](auto a){return true;});
         if (vectorPoints.empty()) return;
 
 
@@ -103,7 +109,7 @@ void SpecificWorker::compute()
         ///control
 
 
-        int offset = vectorPoints.size()/2 - vectorPoints.size()/5;
+    int offset = vectorPoints.size() / 2 - vectorPoints.size() / 5;
 //        int offset = 0;
 
         auto primer_elemento = *std::min_element(vectorPoints.begin()+offset,
@@ -115,14 +121,32 @@ void SpecificWorker::compute()
         qInfo() << sqrt(primer_elemento.x*primer_elemento.x +
                         primer_elemento.y*primer_elemento.y +
                         primer_elemento.z*primer_elemento.z);
-	}
-	catch(const Ice::Exception &e)
-	{
-	  std::cout << "Error reading from Camera" << e << std::endl;
-	}
-	
-	
+
+    //qInfo() << min_elem->x << min_elem->y << min_elem->z;
+
+
+
+    const float MIN_DISTANCE = 1000;
+    if(std::hypot(primer_elemento.x, primer_elemento.y) < MIN_DISTANCE)
+    {
+        // STOP the robot && START
+            omnirobot_proxy->setSpeedBase(0,0,0.5);
+    }
+    else
+    {
+        //start the robot
+        try
+        {
+
+            omnirobot_proxy->setSpeedBase(1000/1000.f, 0, 0);
+        }
+        catch (const Ice::Exception &e)
+        { std::cout << "Error reading from Camera" << e << std::endl;
+        }
+    }
+
 }
+
 
 int SpecificWorker::startup_check()
 {

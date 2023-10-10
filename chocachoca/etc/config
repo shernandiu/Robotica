@@ -5,10 +5,6 @@ Lidar3DProxy = lidar3d:tcp -h localhost -p 11988
 OmniRobotProxy = omnirobot:tcp -h localhost -p 10004
 
 
-
-
-InnerModelPath = innermodel.xml
-
 Ice.Warn.Connections=0
 Ice.Trace.Network=0
 Ice.Trace.Protocol=0
