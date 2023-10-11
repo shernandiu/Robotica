@@ -22,25 +22,22 @@
 /**
 * \brief Default constructor
 */
-SpecificWorker::SpecificWorker(TuplePrx tprx, bool startup_check) : GenericWorker(tprx)
-{
-	this->startup_check_flag = startup_check;
-	// Uncomment if there's too many debug messages
-	// but it removes the possibility to see the messages
-	// shown in the console with qDebug()
+SpecificWorker::SpecificWorker(TuplePrx tprx, bool startup_check) : GenericWorker(tprx) {
+    this->startup_check_flag = startup_check;
+    // Uncomment if there's too many debug messages
+    // but it removes the possibility to see the messages
+    // shown in the console with qDebug()
 //	QLoggingCategory::setFilterRules("*.debug=false\n");
 }
 
 /**
 * \brief Default destructor
 */
-SpecificWorker::~SpecificWorker()
-{
-	std::cout << "Destroying SpecificWorker" << std::endl;
+SpecificWorker::~SpecificWorker() {
+    std::cout << "Destroying SpecificWorker" << std::endl;
 }
 
-bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
-{
+bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params) {
 //	THE FOLLOWING IS JUST AN EXAMPLE
 //	To use innerModelPath parameter you should uncomment specificmonitor.cpp readConfig method content
 //	try
@@ -56,122 +53,149 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 
 
 
-	return true;
+    return true;
 }
 
-void SpecificWorker::initialize(int period)
-{
-	std::cout << "Initialize worker" << std::endl;
-	this->Period = period;
-	if(this->startup_check_flag)
-	{
-		this->startup_check();
-	}
-	else
-	{
+void SpecificWorker::initialize(int period) {
+    std::cout << "Initialize worker" << std::endl;
+    this->Period = period;
+    if (this->startup_check_flag) {
+        this->startup_check();
+    } else {
         viewer = new AbstractGraphicViewer(this, QRectF(-5000, -5000, 10000, 10000));
-        viewer->add_robot(460,480,0,100,QColor("Blue"));
+        viewer->add_robot(460, 480, 0, 100, QColor("Blue"));
         viewer->show();
         viewer->activateWindow();
-		timer.start(Period);
+        timer.start(Period);
 
-	}
+    }
 
 }
 
-void SpecificWorker::compute()
-{
+void SpecificWorker::compute() {
     RoboCompLidar3D::TPoints ldata;
-	try
-    {
+    try {
         ldata = lidar3d_proxy->getLidarData("bpearl", 0, 2 * M_PI, 1).points;
         qInfo() << ldata.size();
     }
-    catch(const Ice::Exception &e)
-    {
+    catch (const Ice::Exception &e) {
         std::cout << "Error reading from Camera" << e << std::endl;
     }
 
-        decltype(ldata) vectorPoints;
+    decltype(ldata) vectorPoints;
 
-        std::copy_if(
-                ldata.begin(),
-                ldata.end(),
-                std::back_inserter(vectorPoints),
-                [](auto a){return a.z < 2000;});
+    std::copy_if(
+            ldata.begin(),
+            ldata.end(),
+            std::back_inserter(vectorPoints),
+            [](auto a) { return a.z < 2000; });
 //                [](auto a){return true;});
-        if (vectorPoints.empty()) return;
+    if (vectorPoints.empty()) return;
 
 
-
-        draw_lidar(vectorPoints, viewer);
-
-        ///control
+    draw_lidar(vectorPoints, viewer);
+    //modos
+    ///control
 
 
     int offset = vectorPoints.size() / 2 - vectorPoints.size() / 5;
 //        int offset = 0;
 
-        auto primer_elemento = *std::min_element(vectorPoints.begin()+offset,
-                  vectorPoints.end()-offset,
-                  []( auto& a,  auto& b){
-            return std::hypot(a.x,a.y,a.z) < std::hypot(b.x,b.y,b.z);});
+    auto primer_elemento = *std::min_element(vectorPoints.begin() + offset,
+                                             vectorPoints.end() - offset,
+                                             [](auto &a, auto &b) {
+                                                 return std::hypot(a.x, a.y, a.z) < std::hypot(b.x, b.y, b.z);
+                                             });
+
+    qInfo() << sqrt(primer_elemento.x * primer_elemento.x +
+                    primer_elemento.y * primer_elemento.y +
+                    primer_elemento.z * primer_elemento.z);
 
 
-        qInfo() << sqrt(primer_elemento.x*primer_elemento.x +
-                        primer_elemento.y*primer_elemento.y +
-                        primer_elemento.z*primer_elemento.z);
+    switch (estado){
+        case Estado::FOLLOW_WALL:
+            estado = follow_wall(vectorPoints.begin() +offset, vectorPoints.end() - offset);
+            break;
+    }
+    straight_line(primer_elemento);
 
-    //qInfo() << min_elem->x << min_elem->y << min_elem->z;
+}
 
-
-
+SpecificWorker::Estado SpecificWorker::follow_wall(RoboCompLidar3D::TPoints points){
     const float MIN_DISTANCE = 1000;
-    if(std::hypot(primer_elemento.x, primer_elemento.y) < MIN_DISTANCE)
-    {
+
+    auto first_point = points[0];
+    auto last_point = *points.end();
+
+    int y_diff = last_point.y-first_point.y;
+    int x_diff = last_point.x-first_point.x;
+
+
+    double angle = std::atan2(y_diff, x_diff);
+
+    if (angle > 0.1 || angle < -0.1) {
         // STOP the robot && START
-            omnirobot_proxy->setSpeedBase(0,0,0.5);
-    }
-    else
-    {
+        omnirobot_proxy->setSpeedBase(0, 0, 0.5);
+        return Estado::FOLLOW_WALL;
+    } else {
         //start the robot
-        try
-        {
+        try {
 
-            omnirobot_proxy->setSpeedBase(1000/1000.f, 0, 0);
+            return Estado::STRAIGHT_LINE;
         }
-        catch (const Ice::Exception &e)
-        { std::cout << "Error reading from Camera" << e << std::endl;
+        catch (const Ice::Exception &e) {
+            std::cout << "Error reading from Camera" << e << std::endl;
         }
     }
+}
 
+SpecificWorker::Estado SpecificWorker::straight_line(auto primer_elemento){
+    const float MIN_DISTANCE = 1000;
+    if (std::hypot(primer_elemento.x, primer_elemento.y) < MIN_DISTANCE) {
+        // STOP the robot && START
+        return Estado::FOLLOW_WALL;
+    } else {
+        //start the robot
+        try {
+
+            omnirobot_proxy->setSpeedBase(1000 / 1000.f, 0, 0);
+            return  Estado::STRAIGHT_LINE;
+        }
+        catch (const Ice::Exception &e) {
+            std::cout << "Error reading from Camera" << e << std::endl;
+        }
+    }
 }
 
 
-int SpecificWorker::startup_check()
-{
-	std::cout << "Startup check" << std::endl;
-	QTimer::singleShot(200, qApp, SLOT(quit()));
-	return 0;
+int SpecificWorker::startup_check() {
+    std::cout << "Startup check" << std::endl;
+    QTimer::singleShot(200, qApp, SLOT(quit()));
+    return 0;
 }
 
-void SpecificWorker::draw_lidar(RoboCompLidar3D::TPoints points, AbstractGraphicViewer* scene) {
-    static std::vector<QGraphicsItem*> borrar;
+void SpecificWorker::draw_lidar(RoboCompLidar3D::TPoints points, AbstractGraphicViewer *scene) {
+    static std::vector<QGraphicsItem *> borrar;
 //    std::for_each(borrar.begin(),borrar.end(),[this](auto a){viewer->scene.removeItem(a);});
 
 
-    for (auto& p: borrar) {
+    for (auto &p: borrar) {
         viewer->scene.removeItem(p);
         delete p;
     }
 
 
     borrar.clear();
-
-    for(const auto& p: points){
-        auto point  =viewer->scene.addRect(-50, -50, 100, 100, QPen(QColor("Green")), QBrush(QColor("Green")));
-        point->setPos(p.x,p.y);
+    float i = 0;
+    for (const auto &p: points) {
+        QColor color(i/points.size() > 0.4 && i/points.size() < 0.6 ?"Green":"Red");
+        auto point = viewer->scene.addRect(-50, -50, 100, 100,
+                                           QPen(color),
+                                           QBrush(color));
+        point->setPos(p.x, p.y);
         borrar.push_back(point);
+
+        i++;
     }
 }
 

@@ -49,6 +49,14 @@ private:
     AbstractGraphicViewer* viewer;
 
     void draw_lidar(RoboCompLidar3D::TPoints points, AbstractGraphicViewer* scene);
+
+    enum class Estado {IDLE, FOLLOW_WALL, STRAIGHT_LINE, SPIRAL };
+    Estado estado = Estado::IDLE;
+
+
+    Estado straight_line(auto primer_elemento);
+
+    Estado follow_wall(RoboCompLidar3D::TPoints points);
 };
 
 #endif

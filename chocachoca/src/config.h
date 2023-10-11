@@ -5,7 +5,7 @@
 #define USE_QTGUI
 
 
-#define PROGRAM_NAME    "chocachoca"
-#define SERVER_FULL_NAME   "RoboComp chocachoca:: chocachoca"
+#define PROGRAM_NAME    "straight_line"
+#define SERVER_FULL_NAME   "RoboComp chocachoca:: straight_line"
 
 #endif
