@@ -76,7 +76,6 @@ void SpecificWorker::compute() {
     RoboCompLidar3D::TPoints ldata;
     try {
         ldata = lidar3d_proxy->getLidarData("bpearl", 0, 2 * M_PI, 1).points;
-        qInfo() << ldata.size();
     }
     catch (const Ice::Exception &e) {
         std::cout << "Error reading from Camera" << e << std::endl;
@@ -92,13 +91,13 @@ void SpecificWorker::compute() {
 //                [](auto a){return true;});
     if (vectorPoints.empty()) return;
 
+    int offset = vectorPoints.size() / 2 - vectorPoints.size() / 5;
 
-    draw_lidar(vectorPoints, viewer);
+    draw_lidar(vectorPoints, viewer, *(vectorPoints.begin() + (int)(vectorPoints.size() * 0.4)), *(vectorPoints.begin()  + (int)(vectorPoints.size() * 0.6)));
     //modos
     ///control
 
 
-    int offset = vectorPoints.size() / 2 - vectorPoints.size() / 5;
 //        int offset = 0;
 
     auto primer_elemento = *std::min_element(vectorPoints.begin() + offset,
@@ -107,33 +106,32 @@ void SpecificWorker::compute() {
                                                  return std::hypot(a.x, a.y, a.z) < std::hypot(b.x, b.y, b.z);
                                              });
 
-    qInfo() << sqrt(primer_elemento.x * primer_elemento.x +
-                    primer_elemento.y * primer_elemento.y +
-                    primer_elemento.z * primer_elemento.z);
-
+//    qInfo() << sqrt(primer_elemento.x * primer_elemento.x +
+//                    primer_elemento.y * primer_elemento.y +
+//                    primer_elemento.z * primer_elemento.z);
 
     switch (estado){
         case Estado::FOLLOW_WALL:
-            estado = follow_wall(vectorPoints.begin() +offset, vectorPoints.end() - offset);
+            estado = follow_wall(*(vectorPoints.begin() + vectorPoints.size() * 0.4), *(vectorPoints.begin()  + vectorPoints.size() * 0.6));
             break;
+        case Estado::STRAIGHT_LINE:
+            qInfo() << ldata.size();
+            estado = straight_line(primer_elemento);
     }
-    straight_line(primer_elemento);
+//    straight_line(primer_elemento);
 
 }
 
-SpecificWorker::Estado SpecificWorker::follow_wall(RoboCompLidar3D::TPoints points){
-    const float MIN_DISTANCE = 1000;
-
-    auto first_point = points[0];
-    auto last_point = *points.end();
+SpecificWorker::Estado SpecificWorker::follow_wall(RoboCompLidar3D::TPoint first_point, RoboCompLidar3D::TPoint last_point){
+#define THRESHOLD 0.15
 
     int y_diff = last_point.y-first_point.y;
     int x_diff = last_point.x-first_point.x;
 
 
-    double angle = std::atan2(y_diff, x_diff);
-
-    if (angle > 0.1 || angle < -0.1) {
+    double angle = std::abs(std::atan2(y_diff, x_diff));
+    qInfo() << "ANGULO: " << angle;
+    if (angle > (std::numbers::pi/2) + THRESHOLD || angle < (std::numbers::pi/2) + -THRESHOLD) {
         // STOP the robot && START
         omnirobot_proxy->setSpeedBase(0, 0, 0.5);
         return Estado::FOLLOW_WALL;
@@ -147,6 +145,7 @@ SpecificWorker::Estado SpecificWorker::follow_wall(RoboCompLidar3D::TPoints poin
             std::cout << "Error reading from Camera" << e << std::endl;
         }
     }
+#undef THRESHOLD
 }
 
 SpecificWorker::Estado SpecificWorker::straight_line(auto primer_elemento){
@@ -174,7 +173,7 @@ int SpecificWorker::startup_check() {
     return 0;
 }
 
-void SpecificWorker::draw_lidar(RoboCompLidar3D::TPoints points, AbstractGraphicViewer *scene) {
+void SpecificWorker::draw_lidar(RoboCompLidar3D::TPoints& points, AbstractGraphicViewer *scene, RoboCompLidar3D::TPoint& first, RoboCompLidar3D::TPoint& last) {
     static std::vector<QGraphicsItem *> borrar;
 //    std::for_each(borrar.begin(),borrar.end(),[this](auto a){viewer->scene.removeItem(a);});
 
@@ -188,8 +187,20 @@ void SpecificWorker::draw_lidar(RoboCompLidar3D::TPoints points, AbstractGraphic
     borrar.clear();
     float i = 0;
     for (const auto &p: points) {
-        QColor color(i/points.size() > 0.4 && i/points.size() < 0.6 ?"Green":"Red");
-        auto point = viewer->scene.addRect(-50, -50, 100, 100,
+
+        QColor color;
+
+//        qInfo() << "\t First: " << first.x << " " << first.y;
+//qInfo() << "\t P: " << p.x << " " << p.y;
+
+        if (p.x == first.x && p.y == first.y)
+            color.setNamedColor("Blue");
+        else if (p.x == last.x && p.y == last.y)
+            color.setNamedColor("Magenta");
+        else
+            color.setNamedColor(i/points.size() > 0.4 && i/points.size() < 0.6 ?"Green":"Red");
+
+        auto point = viewer->scene.addRect(-25, -25, 50, 50,
                                            QPen(color),
                                            QBrush(color));
         point->setPos(p.x, p.y);
