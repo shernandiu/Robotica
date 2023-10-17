@@ -30,6 +30,8 @@
 #include <genericworker.h>
 #include <abstract_graphic_viewer/abstract_graphic_viewer.h>
 
+#define CENTRAL_POINTS_DIFF 800
+
 class SpecificWorker : public GenericWorker
 {
 Q_OBJECT
@@ -62,6 +64,8 @@ private:
 
     void draw_lidar(RoboCompLidar3D::TPoints& points, AbstractGraphicViewer *scene, RoboCompLidar3D::TPoint &first,
                     RoboCompLidar3D::TPoint &last);
+
+    Estado follow_wall(RoboCompLidar3D::TPoints points);
 };
 
 #endif

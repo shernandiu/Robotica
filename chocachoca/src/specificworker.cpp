@@ -112,7 +112,7 @@ void SpecificWorker::compute() {
 
     switch (estado){
         case Estado::FOLLOW_WALL:
-            estado = follow_wall(*(vectorPoints.begin() + vectorPoints.size() * 0.4), *(vectorPoints.begin()  + vectorPoints.size() * 0.6));
+            estado = follow_wall(vectorPoints);
             break;
         case Estado::STRAIGHT_LINE:
             qInfo() << ldata.size();
@@ -122,41 +122,46 @@ void SpecificWorker::compute() {
 
 }
 
-SpecificWorker::Estado SpecificWorker::follow_wall(RoboCompLidar3D::TPoint first_point, RoboCompLidar3D::TPoint last_point){
-#define THRESHOLD 0.15
+SpecificWorker::Estado SpecificWorker::follow_wall(RoboCompLidar3D::TPoints points){
+    auto first_point = points[points.size()/2];
+    auto last_point = points[points.size()/2 + CENTRAL_POINTS_DIFF];
 
-    int y_diff = last_point.y-first_point.y;
+    int y_diff = (last_point.y-first_point.y);
     int x_diff = last_point.x-first_point.x;
 
 
     double angle = std::abs(std::atan2(y_diff, x_diff));
     qInfo() << "ANGULO: " << angle;
-    if (angle > (std::numbers::pi/2) + THRESHOLD || angle < (std::numbers::pi/2) + -THRESHOLD) {
+    qInfo() << "First: X: " << first_point.x << "  Y: " << first_point.y;
+    qInfo() << "Last: X: " << last_point.x << "  Y: " << last_point.y;
+    qInfo() << "DIFF: X: " << x_diff << "  Y: " << y_diff;
+    //if (angle > (std::numbers::pi/2) + THRESHOLD || angle < (std::numbers::pi/2) + -THRESHOLD) {
+    if (std::abs(x_diff) > 10) {
         // STOP the robot && START
         omnirobot_proxy->setSpeedBase(0, 0, 0.5);
         return Estado::FOLLOW_WALL;
     } else {
         //start the robot
         try {
-
+            omnirobot_proxy->setSpeedBase(0, 0, 0.0);
             return Estado::STRAIGHT_LINE;
         }
         catch (const Ice::Exception &e) {
             std::cout << "Error reading from Camera" << e << std::endl;
         }
     }
-#undef THRESHOLD
 }
 
 SpecificWorker::Estado SpecificWorker::straight_line(auto primer_elemento){
     const float MIN_DISTANCE = 1000;
     if (std::hypot(primer_elemento.x, primer_elemento.y) < MIN_DISTANCE) {
         // STOP the robot && START
+        omnirobot_proxy->setSpeedBase(1000 / 1000.f, 0, 0);
+
         return Estado::FOLLOW_WALL;
     } else {
         //start the robot
         try {
-
             omnirobot_proxy->setSpeedBase(1000 / 1000.f, 0, 0);
             return  Estado::STRAIGHT_LINE;
         }
@@ -187,11 +192,7 @@ void SpecificWorker::draw_lidar(RoboCompLidar3D::TPoints& points, AbstractGraphi
     borrar.clear();
     float i = 0;
     for (const auto &p: points) {
-
         QColor color;
-
-//        qInfo() << "\t First: " << first.x << " " << first.y;
-//qInfo() << "\t P: " << p.x << " " << p.y;
 
         if (p.x == first.x && p.y == first.y)
             color.setNamedColor("Blue");
@@ -208,6 +209,23 @@ void SpecificWorker::draw_lidar(RoboCompLidar3D::TPoints& points, AbstractGraphi
 
         i++;
     }
+
+    auto p = points[points.size()/2];
+    auto point = viewer->scene.addRect(-50, -50, 100, 100,
+                                       QPen(QColor("Magenta")),
+                                       QBrush(QColor("Magenta")));
+    point->setPos(p.x, p.y);
+    borrar.push_back(point);
+
+
+    p = points[points.size()/2 + CENTRAL_POINTS_DIFF];
+    point = viewer->scene.addRect(-50, -50, 100, 100,
+                                       QPen(QColor("Yellow")),
+                                       QBrush(QColor("Yellow")));
+    point->setPos(p.x, p.y);
+    borrar.push_back(point);
+
+
 }
 
 
