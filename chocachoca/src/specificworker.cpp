@@ -93,8 +93,8 @@ std::vector<RoboCompLidar3D::TPoints> SpecificWorker::filterForwardPoints(const 
         points.begin(),
         points.end(),
         std::back_inserter(vectorPoints),
-        [](const auto& a) {
-            if a.y < 0 return false;
+        [FORWARD_ANGLE](const auto& a) {
+            if (a.y < 0) return false;
             auto angle = std::atan2(a.y, a.x);
             return std::abs(angle-M_PI/2) < FORWARD_ANGLE;
         });
