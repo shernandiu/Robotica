@@ -72,6 +72,24 @@ void SpecificWorker::initialize(int period) {
 
 }
 
+std::vector<RoboCompLidar3D::TPoints> SpecificWorker::filterLidarPoints(std::vector<RoboCompLidar3D::TPoints>& points) {
+    const float Z_MAXHEIGHT = 2000;
+    std::vector<RoboCompLidar3D::TPoints> vectorPoints;
+
+    std::copy_if(
+        points.begin(),
+        points.end(),
+        std::back_inserter(vectorPoints),
+        [](auto a) { return a.z < Z_MAXHEIGHT; });
+
+    return vectorPoints;
+}
+
+RoboCompLidar3D::TPoint SpecificWorker::closestElement(std::iterator& begin, std::iterator& end) {
+    return *std::min_element(begin,end,
+                            [](auto &a, auto &b) {return std::hypot(a.x, a.y, a.z) < std::hypot(b.x, b.y, b.z);});
+}
+
 void SpecificWorker::compute() {
     RoboCompLidar3D::TPoints ldata;
     try {
@@ -81,34 +99,18 @@ void SpecificWorker::compute() {
         std::cout << "Error reading from Camera" << e << std::endl;
     }
 
-    decltype(ldata) vectorPoints;
+    auto vectorPoints = filterLidarPoints(ldata);
 
-    std::copy_if(
-            ldata.begin(),
-            ldata.end(),
-            std::back_inserter(vectorPoints),
-            [](auto a) { return a.z < 2000; });
-//                [](auto a){return true;});
     if (vectorPoints.empty()) return;
 
     int offset = vectorPoints.size() / 2 - vectorPoints.size() / 5;
+    auto primer_elemento = closestElement(vectorPoints.begin() + offset, vectorPoints.end() - offset);
 
-    draw_lidar(vectorPoints, viewer, *(vectorPoints.begin() + (int)(vectorPoints.size() * 0.4)), *(vectorPoints.begin()  + (int)(vectorPoints.size() * 0.6)));
-    //modos
-    ///control
-
-
-//        int offset = 0;
-
-    auto primer_elemento = *std::min_element(vectorPoints.begin() + offset,
-                                             vectorPoints.end() - offset,
-                                             [](auto &a, auto &b) {
-                                                 return std::hypot(a.x, a.y, a.z) < std::hypot(b.x, b.y, b.z);
-                                             });
 
 //    qInfo() << sqrt(primer_elemento.x * primer_elemento.x +
 //                    primer_elemento.y * primer_elemento.y +
 //                    primer_elemento.z * primer_elemento.z);
+    draw_lidar(vectorPoints, viewer, *(vectorPoints.begin() + (int)(vectorPoints.size() * 0.4)), *(vectorPoints.begin()  + (int)(vectorPoints.size() * 0.6)));
 
     switch (estado){
         case Estado::FOLLOW_WALL:
@@ -239,4 +241,3 @@ void SpecificWorker::draw_lidar(RoboCompLidar3D::TPoints& points, AbstractGraphi
 // From the RoboCompLidar3D you can use this types:
 // RoboCompLidar3D::TPoint
 // RoboCompLidar3D::TData
-

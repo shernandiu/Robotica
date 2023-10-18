@@ -66,6 +66,11 @@ private:
                     RoboCompLidar3D::TPoint &last);
 
     Estado follow_wall(RoboCompLidar3D::TPoints points);
+
+    // filters points too high collected by Lidar
+    std::vector<RoboCompLidar3D::TPoints> filterLidarPoints(std::vector<RoboCompLidar3D::TPoints>& points);
+
+    RoboCompLidar3D::TPoint closestElement(std::iterator& begin, std::iterator& end);
 };
 
 #endif

@@ -6,6 +6,7 @@ Testing/
 Makefile
 .idea/
 .cmake/
+.vscode/
 *.cmake
 *.ice
 src/CommonBehavior.*
