@@ -72,7 +72,7 @@ void SpecificWorker::initialize(int period) {
 
 }
 
-std::vector<RoboCompLidar3D::TPoints> SpecificWorker::filterLidarPoints(std::vector<RoboCompLidar3D::TPoints>& points) {
+std::vector<RoboCompLidar3D::TPoints> SpecificWorker::filterLidarPoints(const std::vector<RoboCompLidar3D::TPoints>& points) {
     const float Z_MAXHEIGHT = 2000;
     std::vector<RoboCompLidar3D::TPoints> vectorPoints;
 
@@ -80,7 +80,7 @@ std::vector<RoboCompLidar3D::TPoints> SpecificWorker::filterLidarPoints(std::vec
         points.begin(),
         points.end(),
         std::back_inserter(vectorPoints),
-        [](auto a) { return a.z < Z_MAXHEIGHT; });
+        [](const auto& a) { return a.z < Z_MAXHEIGHT; });
 
     return vectorPoints;
 }
@@ -101,18 +101,18 @@ std::vector<RoboCompLidar3D::TPoints> SpecificWorker::filterForwardPoints(const 
     return vectorPoints;
 }
 
-RoboCompLidar3D::TPoint SpecificWorker::closestElement(std::iterator& begin, std::iterator& end) {
+RoboCompLidar3D::TPoint SpecificWorker::closestElement(const std::iterator& begin, const std::iterator& end) {
     return *std::min_element(begin,end,
-                            [](auto &a, auto &b) {return std::hypot(a.x, a.y, a.z) < std::hypot(b.x, b.y, b.z);});
+                            [](const auto &a, const auto &b) {return std::hypot(a.x, a.y, a.z) < std::hypot(b.x, b.y, b.z);});
 }
 
 void SpecificWorker::compute() {
     RoboCompLidar3D::TPoints ldata;
-    try {
+    try
         ldata = lidar3d_proxy->getLidarData("bpearl", 0, 2 * M_PI, 1).points;
-    }
     catch (const Ice::Exception &e) {
         std::cout << "Error reading from Camera" << e << std::endl;
+        return;
     }
 
     auto vectorPoints = filterLidarPoints(ldata);
@@ -121,7 +121,6 @@ void SpecificWorker::compute() {
 
     int offset = vectorPoints.size() / 2 - vectorPoints.size() / 5;
     auto primer_elemento = closestElement(vectorPoints.begin() + offset, vectorPoints.end() - offset);
-
 
 //    qInfo() << sqrt(primer_elemento.x * primer_elemento.x +
 //                    primer_elemento.y * primer_elemento.y +
@@ -135,9 +134,11 @@ void SpecificWorker::compute() {
         case Estado::STRAIGHT_LINE:
             qInfo() << ldata.size();
             estado = straight_line(primer_elemento);
+            break;
+        case Estado::SPIRAL:
+            
+        case Estado::IDLE:
     }
-//    straight_line(primer_elemento);
-
 }
 
 SpecificWorker::Estado SpecificWorker::follow_wall(RoboCompLidar3D::TPoints points){
@@ -172,22 +173,25 @@ SpecificWorker::Estado SpecificWorker::follow_wall(RoboCompLidar3D::TPoints poin
 
 SpecificWorker::Estado SpecificWorker::straight_line(auto primer_elemento){
     const float MIN_DISTANCE = 1000;
-    if (std::hypot(primer_elemento.x, primer_elemento.y) < MIN_DISTANCE) {
-        // STOP the robot && START
-        omnirobot_proxy->setSpeedBase(1000 / 1000.f, 0, 0);
-
-        return Estado::FOLLOW_WALL;
-    } else {
         //start the robot
-        try {
+    try {
+        if (std::hypot(primer_elemento.x, primer_elemento.y) < MIN_DISTANCE) {
+            // STOP the robot && START
+            omnirobot_proxy->setSpeedBase(1000 / 1000.f, 0, 0);
+
+            return Estado::FOLLOW_WALL;
+        }
+        else {
             omnirobot_proxy->setSpeedBase(1000 / 1000.f, 0, 0);
             return  Estado::STRAIGHT_LINE;
         }
-        catch (const Ice::Exception &e) {
-            std::cout << "Error reading from Camera" << e << std::endl;
-        }
+    }
+    catch (const Ice::Exception &e) {
+        std::cout << "Error reading from Camera" << e << std::endl;
+        return Estado::IDLE;
     }
 }
+
 
 
 int SpecificWorker::startup_check() {
