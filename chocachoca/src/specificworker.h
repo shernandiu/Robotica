@@ -30,7 +30,7 @@
 #include <genericworker.h>
 #include <abstract_graphic_viewer/abstract_graphic_viewer.h>
 
-#define CENTRAL_POINTS_DIFF 800
+#define CENTRAL_POINTS_DIFF 400
 
 class SpecificWorker : public GenericWorker
 {
@@ -50,20 +50,12 @@ private:
 	bool startup_check_flag;
     AbstractGraphicViewer* viewer;
 
-    void draw_lidar(RoboCompLidar3D::TPoints points, AbstractGraphicViewer* scene);
-
     enum class Estado {IDLE, FOLLOW_WALL, STRAIGHT_LINE, SPIRAL };
     Estado estado = Estado::STRAIGHT_LINE;
 
 
     Estado straight_line(auto primer_elemento);
 
-
-    Estado follow_wall(RoboCompLidar3D::TPoint first_point, RoboCompLidar3D::TPoint last_point);
-
-
-    void draw_lidar(RoboCompLidar3D::TPoints& points, AbstractGraphicViewer *scene, RoboCompLidar3D::TPoint &first,
-                    RoboCompLidar3D::TPoint &last);
 
     Estado follow_wall(RoboCompLidar3D::TPoints points);
 
@@ -75,6 +67,10 @@ private:
     RoboCompLidar3D::TPoint closestElement(const std::vector<RoboCompLidar3D::TPoint>::iterator& begin,
                                            const std::vector<RoboCompLidar3D::TPoint>::iterator& end);
 
+    vector<RoboCompLidar3D::TPoint> filterClosePoints(const vector<RoboCompLidar3D::TPoint> &points);
+
+    void draw_lidar(RoboCompLidar3D::TPoints &points, AbstractGraphicViewer *scene,
+                    vector<RoboCompLidar3D::TPoint> &forward_points, vector<RoboCompLidar3D::TPoint> &close_points);
 };
 
 #endif
