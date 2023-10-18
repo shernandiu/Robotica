@@ -71,6 +71,8 @@ private:
     std::vector<RoboCompLidar3D::TPoints> filterLidarPoints(std::vector<RoboCompLidar3D::TPoints>& points);
 
     RoboCompLidar3D::TPoint closestElement(std::iterator& begin, std::iterator& end);
+
+    std::vector<RoboCompLidar3D::TPoints> filterForwardPoints(const std::vector<RoboCompLidar3D::TPoints>& points);
 };
 
 #endif

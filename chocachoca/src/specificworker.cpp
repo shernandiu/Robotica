@@ -85,6 +85,22 @@ std::vector<RoboCompLidar3D::TPoints> SpecificWorker::filterLidarPoints(std::vec
     return vectorPoints;
 }
 
+std::vector<RoboCompLidar3D::TPoints> SpecificWorker::filterForwardPoints(const std::vector<RoboCompLidar3D::TPoints>& points) {
+    const float FORWARD_ANGLE = 5 * (M_PI / 180);
+    std::vector<RoboCompLidar3D::TPoints> vectorPoints;
+
+    std::copy_if(
+        points.begin(),
+        points.end(),
+        std::back_inserter(vectorPoints),
+        [](const auto& a) {
+            if a.y < 0 return false;
+            auto angle = std::atan2(a.y, a.x);
+            return std::abs(angle-M_PI/2) < FORWARD_ANGLE;
+        });
+    return vectorPoints;
+}
+
 RoboCompLidar3D::TPoint SpecificWorker::closestElement(std::iterator& begin, std::iterator& end) {
     return *std::min_element(begin,end,
                             [](auto &a, auto &b) {return std::hypot(a.x, a.y, a.z) < std::hypot(b.x, b.y, b.z);});
