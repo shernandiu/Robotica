@@ -72,22 +72,22 @@ void SpecificWorker::initialize(int period) {
 
 }
 
-std::vector<RoboCompLidar3D::TPoints> SpecificWorker::filterLidarPoints(const std::vector<RoboCompLidar3D::TPoints>& points) {
+std::vector<RoboCompLidar3D::TPoint> SpecificWorker::filterLidarPoints(const RoboCompLidar3D::TPoints& points) {
     const float Z_MAXHEIGHT = 2000;
-    std::vector<RoboCompLidar3D::TPoints> vectorPoints;
+    std::vector<RoboCompLidar3D::TPoint> vectorPoints;
 
     std::copy_if(
         points.begin(),
         points.end(),
         std::back_inserter(vectorPoints),
-        [](const auto& a) { return a.z < Z_MAXHEIGHT; });
+        [Z_MAXHEIGHT](const auto& a) { return a.z < Z_MAXHEIGHT; });
 
     return vectorPoints;
 }
 
-std::vector<RoboCompLidar3D::TPoints> SpecificWorker::filterForwardPoints(const std::vector<RoboCompLidar3D::TPoints>& points) {
+std::vector<RoboCompLidar3D::TPoint> SpecificWorker::filterForwardPoints(const std::vector<RoboCompLidar3D::TPoint>& points) {
     const float FORWARD_ANGLE = 5 * (M_PI / 180);
-    std::vector<RoboCompLidar3D::TPoints> vectorPoints;
+    std::vector<RoboCompLidar3D::TPoint> vectorPoints;
 
     std::copy_if(
         points.begin(),
@@ -101,15 +101,17 @@ std::vector<RoboCompLidar3D::TPoints> SpecificWorker::filterForwardPoints(const 
     return vectorPoints;
 }
 
-RoboCompLidar3D::TPoint SpecificWorker::closestElement(const std::iterator& begin, const std::iterator& end) {
+RoboCompLidar3D::TPoint SpecificWorker::closestElement( const std::vector<RoboCompLidar3D::TPoint>::iterator& begin,
+                                                        const std::vector<RoboCompLidar3D::TPoint>::iterator& end) {
     return *std::min_element(begin,end,
                             [](const auto &a, const auto &b) {return std::hypot(a.x, a.y, a.z) < std::hypot(b.x, b.y, b.z);});
 }
 
 void SpecificWorker::compute() {
     RoboCompLidar3D::TPoints ldata;
-    try
+    try {
         ldata = lidar3d_proxy->getLidarData("bpearl", 0, 2 * M_PI, 1).points;
+    }
     catch (const Ice::Exception &e) {
         std::cout << "Error reading from Camera" << e << std::endl;
         return;
@@ -136,8 +138,8 @@ void SpecificWorker::compute() {
             estado = straight_line(primer_elemento);
             break;
         case Estado::SPIRAL:
-            
         case Estado::IDLE:
+            break;
     }
 }
 
@@ -167,6 +169,7 @@ SpecificWorker::Estado SpecificWorker::follow_wall(RoboCompLidar3D::TPoints poin
         }
         catch (const Ice::Exception &e) {
             std::cout << "Error reading from Camera" << e << std::endl;
+            return Estado::IDLE;
         }
     }
 }
