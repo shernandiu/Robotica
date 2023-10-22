@@ -47,7 +47,11 @@ public slots:
 	int startup_check();
 	void initialize(int period);
 private:
-	bool startup_check_flag;
+    float MIN_DISTANCE = 1000;
+    const float MIN_DISTANCE_STEP = 1000;
+    int number_turns = 0;
+
+    bool startup_check_flag;
     AbstractGraphicViewer* viewer;
 
     enum class Estado {IDLE, FOLLOW_WALL, STRAIGHT_LINE, TURN  };
@@ -55,7 +59,7 @@ private:
 
 
     Estado straight_line(auto primer_elemento);
-    Estado follow_wall(auto primer_elemento);
+    Estado follow_wall(auto closest_wall_point, auto closest_forward_point);
     Estado turn(RoboCompLidar3D::TPoints points);
 
     // filters points too high collected by Lidar
