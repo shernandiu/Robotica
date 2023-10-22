@@ -186,24 +186,23 @@ SpecificWorker::Estado SpecificWorker::turn(RoboCompLidar3D::TPoints points){
     qInfo() << "First: X: " << first_point.x << "  Y: " << first_point.y;
     qInfo() << "Last: X: " << last_point.x << "  Y: " << last_point.y;
     qInfo() << "DIFF: X: " << x_diff << "  Y: " << y_diff;
-    //if (angle > (std::numbers::pi/2) + THRESHOLD || angle < (std::numbers::pi/2) + -THRESHOLD) {
-    if (std::abs(x_diff) > 10) {
-        // STOP the robot && START
-        omnirobot_proxy->setSpeedBase(0, 0,  right_left ? 0.5 : -0.5);
-        return Estado::TURN;
-    } else {
-        //start the robot
-        try {
+
+    try {
+        if (std::abs(x_diff) > 10) {
+            omnirobot_proxy->setSpeedBase(0, 0, right_left ? 0.5 : -0.5);
+            return Estado::TURN;
+        }
+        else {
             omnirobot_proxy->setSpeedBase(0, 0, 0.0);
             reset = true;
             return Estado::STRAIGHT_LINE;
         }
-        catch (const Ice::Exception &e) {
-            std::cout << "Error reading from Camera" << e << std::endl;
-            return Estado::IDLE;
-        }
+    } catch (const Ice::Exception &e) {
+        std::cout << "Error controlling robot" << e << std::endl;
+        return Estado::IDLE;
     }
 }
+
 
 SpecificWorker::Estado SpecificWorker::straight_line(auto primer_elemento){
     const float MIN_DISTANCE = 1000;
@@ -220,7 +219,7 @@ SpecificWorker::Estado SpecificWorker::straight_line(auto primer_elemento){
         }
     }
     catch (const Ice::Exception &e) {
-        std::cout << "Error reading from Camera" << e << std::endl;
+        std::cout << "Error controlling robot" << e << std::endl;
         return Estado::IDLE;
     }
 }
@@ -246,7 +245,7 @@ Estado SpecificWorker::follow_wall(auto closest_wall_point, auto closest_forward
 
     }
     catch (const Ice::Exception &e) {
-        std::cout << "Error reading from Camera" << e << std::endl;
+        std::cout << "Error controlling robot" << e << std::endl;
         return Estado::IDLE;
     }
 }
