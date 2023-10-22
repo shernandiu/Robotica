@@ -139,7 +139,9 @@ void SpecificWorker::compute() {
     if (vectorPoints.empty() || forwardPoints.empty()) return;
 
     int offset = vectorPoints.size() / 2 - vectorPoints.size() / 5;
-    auto primer_elemento = closestElement(forwardPoints.begin(), forwardPoints.end());
+
+    auto closest_forward_point = closestElement(forwardPoints.begin(), forwardPoints.end());
+    auto closest_wall_point = closestElement(closePoints.begin(), closePoints.end());
 
 //    qInfo() << sqrt(primer_elemento.x * primer_elemento.x +
 //                    primer_elemento.y * primer_elemento.y +
@@ -156,10 +158,10 @@ void SpecificWorker::compute() {
             break;
         case Estado::STRAIGHT_LINE:
             qInfo() << ldata.size();
-            estado = straight_line(primer_elemento);
+            estado = straight_line(closest_forward_point);
             break;
         case Estado::FOLLOW_WALL:
-            estado = follow_wall();
+            estado = follow_wall(closest_wall_point, closest_forward_point);
             break;
         case Estado::IDLE:
             break;
@@ -204,12 +206,9 @@ SpecificWorker::Estado SpecificWorker::turn(RoboCompLidar3D::TPoints points){
 }
 
 
-SpecificWorker::Estado SpecificWorker::straight_line(auto primer_elemento){
-    const float MIN_DISTANCE = 1000;
-        //start the robot
+SpecificWorker::Estado SpecificWorker::straight_line(auto primer_elemento) {
     try {
         if (std::hypot(primer_elemento.x, primer_elemento.y) < MIN_DISTANCE) {
-            // STOP the robot && START
             omnirobot_proxy->setSpeedBase(1000 / 1000.f, 0, 0);
             return Estado::TURN;
         }
@@ -224,11 +223,8 @@ SpecificWorker::Estado SpecificWorker::straight_line(auto primer_elemento){
     }
 }
 
-Estado SpecificWorker::follow_wall(auto closest_wall_point, auto closest_forward_point)
-{
-    const float MIN_DISTANCE = 1000;
+Estado SpecificWorker::follow_wall(auto closest_wall_point, auto closest_forward_point) {
     const float THRESHOLD = 100;
-    //start the robot
     try {
         if (std::hypot(closest_forward_point.x, closest_forward_point.y) < MIN_DISTANCE) {
             omnirobot_proxy->setSpeedBase(1000 / 1000.f, 0, 0);
@@ -324,8 +320,6 @@ void SpecificWorker::draw_lidar(RoboCompLidar3D::TPoints& points, AbstractGraphi
     } catch (const std::out_of_range &e) {
         
     }
-
-
 }
 
 
