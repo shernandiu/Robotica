@@ -74,31 +74,15 @@ void SpecificWorker::initialize(int period) {
 
 std::vector<RoboCompLidar3D::TPoints> SpecificWorker::filterLidarPoints(const std::vector<RoboCompLidar3D::TPoints>& points) {
     const float Z_MAXHEIGHT = 2000;
-    std::vector<RoboCompLidar3D::TPoints> vectorPoints;
-
-    std::copy_if(
-        points.begin(),
-        points.end(),
-        std::back_inserter(vectorPoints),
-        [](const auto& a) { return a.z < Z_MAXHEIGHT; });
-
-    return vectorPoints;
+    return points|std::views::filter([](const auto& a) { return a.z < Z_MAXHEIGHT; });
 }
 
 std::vector<RoboCompLidar3D::TPoints> SpecificWorker::filterForwardPoints(const std::vector<RoboCompLidar3D::TPoints>& points) {
     const float FORWARD_ANGLE = 5 * (M_PI / 180);
-    std::vector<RoboCompLidar3D::TPoints> vectorPoints;
-
-    std::copy_if(
-        points.begin(),
-        points.end(),
-        std::back_inserter(vectorPoints),
-        [FORWARD_ANGLE](const auto& a) {
-            if (a.y < 0) return false;
-            auto angle = std::atan2(a.y, a.x);
-            return std::abs(angle-M_PI/2) < FORWARD_ANGLE;
-        });
-    return vectorPoints;
+    return points | std::views::filter([FORWARD_ANGLE](const auto& a) {
+        if (a.y < 0) return false;
+        auto angle = std::atan2(a.y, a.x);
+        return std::abs(angle-M_PI/2) < FORWARD_ANGLE;});
 }
 
 RoboCompLidar3D::TPoint SpecificWorker::closestElement(const std::iterator& begin, const std::iterator& end) {
