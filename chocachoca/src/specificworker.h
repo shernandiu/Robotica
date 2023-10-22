@@ -50,14 +50,13 @@ private:
 	bool startup_check_flag;
     AbstractGraphicViewer* viewer;
 
-    enum class Estado {IDLE, FOLLOW_WALL, STRAIGHT_LINE, SPIRAL };
+    enum class Estado {IDLE, FOLLOW_WALL, STRAIGHT_LINE, TURN  };
     Estado estado = Estado::STRAIGHT_LINE;
 
 
     Estado straight_line(auto primer_elemento);
-
-
-    Estado follow_wall(RoboCompLidar3D::TPoints points);
+    Estado follow_wall(auto primer_elemento);
+    Estado turn(RoboCompLidar3D::TPoints points);
 
     // filters points too high collected by Lidar
     std::vector<RoboCompLidar3D::TPoint> filterLidarPoints(const RoboCompLidar3D::TPoints &points);

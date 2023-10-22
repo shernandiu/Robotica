@@ -147,24 +147,26 @@ void SpecificWorker::compute() {
     draw_lidar(vectorPoints, viewer, forwardPoints, closePoints);
 
     switch (estado){
-        case Estado::FOLLOW_WALL:
+        case Estado::TURN:
             if (closePoints.size() < CENTRAL_POINTS_DIFF*2) {
                 estado = Estado::STRAIGHT_LINE;
                 break;
             }
-            estado = follow_wall(closePoints);
+            estado = turn(closePoints);
             break;
         case Estado::STRAIGHT_LINE:
             qInfo() << ldata.size();
             estado = straight_line(primer_elemento);
             break;
-        case Estado::SPIRAL:
+        case Estado::FOLLOW_WALL:
+            estado = follow_wall();
+            break;
         case Estado::IDLE:
             break;
     }
 }
 
-SpecificWorker::Estado SpecificWorker::follow_wall(RoboCompLidar3D::TPoints points){
+SpecificWorker::Estado SpecificWorker::turn(RoboCompLidar3D::TPoints points){
     static bool reset = true;
     bool right_left;
     if(reset){
@@ -175,7 +177,7 @@ SpecificWorker::Estado SpecificWorker::follow_wall(RoboCompLidar3D::TPoints poin
     auto first_point = points[points.size()/2];
     auto last_point = points[points.size()/2 + CENTRAL_POINTS_DIFF];
 
-    int y_diff = (last_point.y-first_point.y);
+    int y_diff = last_point.y-first_point.y;
     int x_diff = last_point.x-first_point.x;
 
 
@@ -188,7 +190,7 @@ SpecificWorker::Estado SpecificWorker::follow_wall(RoboCompLidar3D::TPoints poin
     if (std::abs(x_diff) > 10) {
         // STOP the robot && START
         omnirobot_proxy->setSpeedBase(0, 0,  right_left ? 0.5 : -0.5);
-        return Estado::FOLLOW_WALL;
+        return Estado::TURN;
     } else {
         //start the robot
         try {
@@ -210,13 +212,38 @@ SpecificWorker::Estado SpecificWorker::straight_line(auto primer_elemento){
         if (std::hypot(primer_elemento.x, primer_elemento.y) < MIN_DISTANCE) {
             // STOP the robot && START
             omnirobot_proxy->setSpeedBase(1000 / 1000.f, 0, 0);
-
-            return Estado::FOLLOW_WALL;
+            return Estado::TURN;
         }
         else {
             omnirobot_proxy->setSpeedBase(1000 / 1000.f, 0, 0);
             return  Estado::STRAIGHT_LINE;
         }
+    }
+    catch (const Ice::Exception &e) {
+        std::cout << "Error reading from Camera" << e << std::endl;
+        return Estado::IDLE;
+    }
+}
+
+Estado SpecificWorker::follow_wall(auto closest_wall_point, auto closest_forward_point)
+{
+    const float MIN_DISTANCE = 1000;
+    const float THRESHOLD = 100;
+    //start the robot
+    try {
+        if (std::hypot(closest_forward_point.x, closest_forward_point.y) < MIN_DISTANCE) {
+            omnirobot_proxy->setSpeedBase(1000 / 1000.f, 0, 0);
+            return Estado::TURN;
+        } if (std::hypot(closest_wall_point.x, closest_wall_point.y) < MIN_DISTANCE-THRESHOLD) {
+            omnirobot_proxy->setSpeedBase(1000 / 1000.f, 0, -0.5);
+            return  Estado::STRAIGHT_LINE;
+        } if (std::hypot(closest_wall_point.x, closest_wall_point.y) > MIN_DISTANCE+THRESHOLD) {
+            omnirobot_proxy->setSpeedBase(1000 / 1000.f, 0, +0.5);
+            return  Estado::STRAIGHT_LINE;
+        }
+        omnirobot_proxy->setSpeedBase(1000 / 1000.f, 0, 0);
+        return  Estado::STRAIGHT_LINE;
+
     }
     catch (const Ice::Exception &e) {
         std::cout << "Error reading from Camera" << e << std::endl;
