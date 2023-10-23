@@ -30,7 +30,7 @@
 #include <genericworker.h>
 #include <abstract_graphic_viewer/abstract_graphic_viewer.h>
 
-#define CENTRAL_POINTS_DIFF 50
+#define CENTRAL_POINTS_DIFF 300
 
 class SpecificWorker : public GenericWorker
 {
@@ -50,7 +50,7 @@ private:
     float MIN_DISTANCE = 600;
     const float MIN_DISTANCE_STEP = 250;
     int number_turns = 0;
-    float FORWARD_SPEED = 1.5;
+    float FORWARD_SPEED = 1.0;
     float ROTATION_SPEED = 1.0;
 
     bool startup_check_flag;

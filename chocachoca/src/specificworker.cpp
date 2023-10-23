@@ -140,8 +140,9 @@ void SpecificWorker::compute() {
 
     int offset = vectorPoints.size() / 2 - vectorPoints.size() / 5;
 
+    auto forwardPoints = filterForwardPoints(vectorPoints);
 
-    //draw_lidar(vectorPoints, viewer, forwardPoints, closePoints);
+    draw_lidar(vectorPoints, viewer, forwardPoints, closePoints);
 
     if (number_turns == 4) {
         number_turns = 0;
@@ -163,10 +164,11 @@ void SpecificWorker::compute() {
             break;
         }
         case Estado::FOLLOW_WALL: {
-            auto forwardPoints = filterForwardPoints(vectorPoints);
             auto closest_wall_point = closestElement(closePoints.begin(), closePoints.end());
-            auto closest_forward_point = closestElement(forwardPoints.begin(), forwardPoints.end());
-            estado = follow_wall(closest_wall_point, closest_forward_point);
+            if (!forwardPoints.empty()) {
+                auto closest_forward_point = closestElement(forwardPoints.begin(), forwardPoints.end());
+                estado = follow_wall(closest_wall_point, closest_forward_point);
+            }
             break;
         }
         case Estado::IDLE:
@@ -203,8 +205,13 @@ SpecificWorker::Estado SpecificWorker::turn(RoboCompLidar3D::TPoints points){
         "\t Distance: " << MIN_DISTANCE<<"\n";
 
     try {
-        if (std::abs(angle - M_PI/2) > THRESHOLD) {
-            omnirobot_proxy->setSpeedBase(0, 0, right_left ? 0.5 : -0.5);
+//        if (std::abs(angle - M_PI/2) > THRESHOLD) {
+        if (right_left && angle < M_PI/2) {
+            omnirobot_proxy->setSpeedBase(0, 0,  0.5 );
+            return Estado::TURN;
+        }
+        if (!right_left && angle > M_PI/2) {
+            omnirobot_proxy->setSpeedBase(0, 0,  -0.5 );
             return Estado::TURN;
         }
         else {
