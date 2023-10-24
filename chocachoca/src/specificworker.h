@@ -50,8 +50,10 @@ private:
     float MIN_DISTANCE = 600;
     const float MIN_DISTANCE_STEP = 250;
     int number_turns = 0;
-    float FORWARD_SPEED = 1.0;
+    float MAX_FORWARD_SPEED = 2.5;
+    float MIN_FORWARD_SPEED = 1.0;
     float ROTATION_SPEED = 1.0;
+    float LATERAL_SPEED = 1.0;
 
     bool startup_check_flag;
     AbstractGraphicViewer* viewer;

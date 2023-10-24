@@ -215,7 +215,7 @@ SpecificWorker::Estado SpecificWorker::turn(RoboCompLidar3D::TPoints points){
             return Estado::TURN;
         }
         else {
-            omnirobot_proxy->setSpeedBase(FORWARD_SPEED, 0, 0.0);
+            omnirobot_proxy->setSpeedBase(MAX_FORWARD_SPEED, 0, 0.0);
             reset = true;
             return Estado::FOLLOW_WALL;
         }
@@ -227,6 +227,10 @@ SpecificWorker::Estado SpecificWorker::turn(RoboCompLidar3D::TPoints points){
 
 
 SpecificWorker::Estado SpecificWorker::straight_line(auto primer_elemento) {
+    const auto distance = std::hypot(primer_elemento.x, primer_elemento.y);
+    const float SPEED =  distance > MIN_DISTANCE * 2
+                         ? MAX_FORWARD_SPEED: (MIN_FORWARD_SPEED-MAX_FORWARD_SPEED)/(MIN_DISTANCE)*distance;
+
     qInfo() << "STRAIGHT LINE\n"
                "\t Closest element:" << std::hypot(primer_elemento.x, primer_elemento.y)<<"\n"
                "\t Distance:" << MIN_DISTANCE<<"\n";
@@ -236,7 +240,7 @@ SpecificWorker::Estado SpecificWorker::straight_line(auto primer_elemento) {
             return Estado::TURN;
         }
         else {
-            omnirobot_proxy->setSpeedBase(FORWARD_SPEED, 0, 0);
+            omnirobot_proxy->setSpeedBase(SPEED, 0, 0);
             return  Estado::STRAIGHT_LINE;
         }
     }
@@ -248,8 +252,9 @@ SpecificWorker::Estado SpecificWorker::straight_line(auto primer_elemento) {
 
 SpecificWorker::Estado SpecificWorker::follow_wall(auto closest_wall_point, auto closest_forward_point) {
     const float THRESHOLD = 100;
-    const float SPEED = std::hypot(closest_forward_point.x, closest_forward_point.y) < MIN_DISTANCE + 500
-            ? FORWARD_SPEED/2: FORWARD_SPEED;
+    const auto distance = std::hypot(closest_forward_point.x, closest_forward_point.y);
+    const float SPEED =  distance > MIN_DISTANCE * 2
+            ? MAX_FORWARD_SPEED: (MIN_FORWARD_SPEED-MAX_FORWARD_SPEED)/(MIN_DISTANCE)*distance;
 
     qInfo() << "FOLLOW WALL\n"
             "\t Wall point: " << std::hypot(closest_wall_point.x, closest_wall_point.y)<<"\n"
@@ -264,11 +269,11 @@ SpecificWorker::Estado SpecificWorker::follow_wall(auto closest_wall_point, auto
             return Estado::TURN;
         } if (std::hypot(closest_wall_point.x, closest_wall_point.y) < MIN_DISTANCE-THRESHOLD) {
             omnirobot_proxy->setSpeedBase(SPEED,
-                closest_wall_point.x < 0 ? -FORWARD_SPEED : +FORWARD_SPEED, 0);
+                closest_wall_point.x < 0 ? LATERAL_SPEED : +LATERAL_SPEED, 0);
             return  Estado::FOLLOW_WALL;
         } if (std::hypot(closest_wall_point.x, closest_wall_point.y) > MIN_DISTANCE+THRESHOLD) {
             omnirobot_proxy->setSpeedBase(SPEED,
-                closest_wall_point.x < 0 ? +FORWARD_SPEED : -FORWARD_SPEED, 0);
+                closest_wall_point.x < 0 ? +LATERAL_SPEED : -LATERAL_SPEED, 0);
             return  Estado::FOLLOW_WALL;
         }
         omnirobot_proxy->setSpeedBase(SPEED, 0, 0);
