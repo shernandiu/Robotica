@@ -74,13 +74,30 @@ void SpecificWorker::initialize(int period) {
 
 std::vector<RoboCompLidar3D::TPoint> SpecificWorker::filterLidarPoints(const RoboCompLidar3D::TPoints& points) {
     const float Z_MAXHEIGHT = 2000;
+    const float Z_MINHEIGHT = 550;
     std::vector<RoboCompLidar3D::TPoint> vectorPoints;
 
     std::copy_if(
         points.begin(),
         points.end(),
         std::back_inserter(vectorPoints),
-        [Z_MAXHEIGHT](const auto& a) { return a.z < Z_MAXHEIGHT; });
+        [=](const auto& a) { return a.z < Z_MAXHEIGHT && a.z > Z_MINHEIGHT; });
+
+    return vectorPoints;
+}
+
+std::vector<RoboCompLidar3D::TPoint> SpecificWorker::filterObstacles(const RoboCompLidar3D::TPoints& points, const RoboCompLidar3D::TPoints& wall) {
+    std::vector<RoboCompLidar3D::TPoint> vectorPoints;
+
+    std::copy_if(
+        points.begin(),
+        points.end(),
+        std::back_inserter(vectorPoints),
+        [=](const auto& a) {
+            return wall.end() == std::find_if(wall.begin(), wall.end(), [&](const auto& b){
+                return std::abs(a.x-b.x)<100 && std::abs(a.y-b.y)<100;
+            });
+        });
 
     return vectorPoints;
 }
@@ -132,6 +149,7 @@ void SpecificWorker::compute() {
     }
 
     auto vectorPoints = filterLidarPoints(ldata);
+    auto obstaclePoints = filterObstacles(ldata, vectorPoints);
 
 
     auto closePoints = filterClosePoints(vectorPoints);
@@ -142,7 +160,7 @@ void SpecificWorker::compute() {
 
     auto forwardPoints = filterForwardPoints(vectorPoints);
 
-    draw_lidar(vectorPoints, viewer, forwardPoints, closePoints);
+    draw_lidar(vectorPoints, viewer, forwardPoints, closePoints, obstaclePoints);
 
     if (number_turns == 4) {
         number_turns = 0;
@@ -164,8 +182,8 @@ void SpecificWorker::compute() {
             break;
         }
         case Estado::FOLLOW_WALL: {
-            auto closest_wall_point = closestElement(closePoints.begin(), closePoints.end());
-            if (!forwardPoints.empty()) {
+            if (!forwardPoints.empty() && !closePoints.empty()) {
+                auto closest_wall_point = closestElement(closePoints.begin(), closePoints.end());
                 auto closest_forward_point = closestElement(forwardPoints.begin(), forwardPoints.end());
                 estado = follow_wall(closest_wall_point, closest_forward_point);
             }
@@ -207,11 +225,11 @@ SpecificWorker::Estado SpecificWorker::turn(RoboCompLidar3D::TPoints points){
     try {
 //        if (std::abs(angle - M_PI/2) > THRESHOLD) {
         if (right_left && angle < M_PI/2) {
-            omnirobot_proxy->setSpeedBase(0, 0,  0.5 );
+            omnirobot_proxy->setSpeedBase(0, 0,  1 );
             return Estado::TURN;
         }
         if (!right_left && angle > M_PI/2) {
-            omnirobot_proxy->setSpeedBase(0, 0,  -0.5 );
+            omnirobot_proxy->setSpeedBase(0, 0,  -1);
             return Estado::TURN;
         }
         else {
@@ -228,12 +246,12 @@ SpecificWorker::Estado SpecificWorker::turn(RoboCompLidar3D::TPoints points){
 
 SpecificWorker::Estado SpecificWorker::straight_line(auto primer_elemento) {
     const auto distance = std::hypot(primer_elemento.x, primer_elemento.y);
-    const float SPEED =  distance > MIN_DISTANCE * 2
-                         ? MAX_FORWARD_SPEED: (MIN_FORWARD_SPEED-MAX_FORWARD_SPEED)/(MIN_DISTANCE)*distance;
+    const float SPEED = calculateSpeed(distance);
 
     qInfo() << "STRAIGHT LINE\n"
                "\t Closest element:" << std::hypot(primer_elemento.x, primer_elemento.y)<<"\n"
-               "\t Distance:" << MIN_DISTANCE<<"\n";
+               "\t Distance:" << MIN_DISTANCE<<"\n"
+               "\t Speed: " << SPEED<<"\n";
     try {
         if (std::hypot(primer_elemento.x, primer_elemento.y) < MIN_DISTANCE) {
             omnirobot_proxy->setSpeedBase(0, 0, 0);
@@ -250,11 +268,16 @@ SpecificWorker::Estado SpecificWorker::straight_line(auto primer_elemento) {
     }
 }
 
+double SpecificWorker::calculateSpeed(double distance) const {
+    return distance > MIN_DISTANCE * 2
+           ? MAX_FORWARD_SPEED : ((MAX_FORWARD_SPEED - MIN_FORWARD_SPEED) / (MIN_DISTANCE)) * distance
+           - (MAX_FORWARD_SPEED-2*MIN_FORWARD_SPEED);
+}
+
 SpecificWorker::Estado SpecificWorker::follow_wall(auto closest_wall_point, auto closest_forward_point) {
     const float THRESHOLD = 100;
     const auto distance = std::hypot(closest_forward_point.x, closest_forward_point.y);
-    const float SPEED =  distance > MIN_DISTANCE * 2
-            ? MAX_FORWARD_SPEED: (MIN_FORWARD_SPEED-MAX_FORWARD_SPEED)/(MIN_DISTANCE)*distance;
+    const float SPEED = calculateSpeed(distance);
 
     qInfo() << "FOLLOW WALL\n"
             "\t Wall point: " << std::hypot(closest_wall_point.x, closest_wall_point.y)<<"\n"
@@ -296,7 +319,8 @@ int SpecificWorker::startup_check() {
 
 void SpecificWorker::draw_lidar(RoboCompLidar3D::TPoints& points, AbstractGraphicViewer *scene,
                                 std::vector<RoboCompLidar3D::TPoint>& forward_points,
-                                std::vector<RoboCompLidar3D::TPoint>& close_points) {
+                                std::vector<RoboCompLidar3D::TPoint>& close_points,
+                                std::vector<RoboCompLidar3D::TPoint>& obstacle_points) {
     static std::vector<QGraphicsItem *> borrar;
 //    std::for_each(borrar.begin(),borrar.end(),[this](auto a){viewer->scene.removeItem(a);});
 
@@ -334,6 +358,16 @@ void SpecificWorker::draw_lidar(RoboCompLidar3D::TPoints& points, AbstractGraphi
     }
     for (const auto &p: close_points) {
         QColor color("Cyan");
+        auto point = viewer->scene.addRect(-25, -25, 50, 50,
+                                           QPen(color),
+                                           QBrush(color));
+        point->setPos(p.x, p.y);
+        borrar.push_back(point);
+
+        i++;
+    }
+    for (const auto &p: obstacle_points) {
+            QColor color("Brown");
         auto point = viewer->scene.addRect(-25, -25, 50, 50,
                                            QPen(color),
                                            QBrush(color));

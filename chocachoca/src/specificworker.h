@@ -51,7 +51,7 @@ private:
     const float MIN_DISTANCE_STEP = 250;
     int number_turns = 0;
     float MAX_FORWARD_SPEED = 2.5;
-    float MIN_FORWARD_SPEED = 1.0;
+    float MIN_FORWARD_SPEED = 0.5;
     float ROTATION_SPEED = 1.0;
     float LATERAL_SPEED = 1.0;
 
@@ -78,6 +78,15 @@ private:
 
     void draw_lidar(RoboCompLidar3D::TPoints &points, AbstractGraphicViewer *scene,
                     vector<RoboCompLidar3D::TPoint> &forward_points, vector<RoboCompLidar3D::TPoint> &close_points);
+
+    double calculateSpeed(double distance) const;
+
+    vector<RoboCompLidar3D::TPoint>
+    filterObstacles(const RoboCompLidar3D::TPoints &points, const RoboCompLidar3D::TPoints &wall);
+
+    void draw_lidar(RoboCompLidar3D::TPoints &points, AbstractGraphicViewer *scene,
+                    vector<RoboCompLidar3D::TPoint> &forward_points, vector<RoboCompLidar3D::TPoint> &close_points,
+                    vector<RoboCompLidar3D::TPoint> &obstacle_points);
 };
 
 #endif
