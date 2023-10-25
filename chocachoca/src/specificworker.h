@@ -47,14 +47,16 @@ public slots:
 	int startup_check();
 	void initialize(int period);
 private:
-    float MIN_DISTANCE = 600;
-    const float MIN_DISTANCE_STEP = 250;
-    int number_turns = 0;
+    const float INITIAL_MIN_DISTANCE = 600;
+    float MIN_DISTANCE = INITIAL_MIN_DISTANCE;
+    const float MIN_DISTANCE_STEP = 200;
+    int number_turns = -1;
+    int loops = 0;
     float MAX_FORWARD_SPEED = 2.5;
-    float MIN_FORWARD_SPEED = 0.5;
+    float MIN_FORWARD_SPEED = 0.1;
     float ROTATION_SPEED = 1.0;
     float MIN_ROTATION_SPEED = 0.5;
-    float LATERAL_SPEED = 1.0;
+    float LATERAL_SPEED = 0.5;
 
     bool startup_check_flag;
     AbstractGraphicViewer* viewer;

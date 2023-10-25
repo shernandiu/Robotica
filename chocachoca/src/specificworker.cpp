@@ -74,7 +74,7 @@ void SpecificWorker::initialize(int period) {
 
 std::vector<RoboCompLidar3D::TPoint> SpecificWorker::filterLidarPoints(const RoboCompLidar3D::TPoints& points) {
     const float Z_MAXHEIGHT = 2000;
-    const float Z_MINHEIGHT = 550;
+    const float Z_MINHEIGHT = -1000;
     std::vector<RoboCompLidar3D::TPoint> vectorPoints;
 
     std::copy_if(
@@ -103,7 +103,7 @@ std::vector<RoboCompLidar3D::TPoint> SpecificWorker::filterObstacles(const RoboC
 }
 
 std::vector<RoboCompLidar3D::TPoint> SpecificWorker::filterForwardPoints(const std::vector<RoboCompLidar3D::TPoint>& points) {
-    const float FORWARD_ANGLE = 4 * (M_PI / 180);
+    const float FORWARD_ANGLE = 6 * (M_PI / 180);
     std::vector<RoboCompLidar3D::TPoint> vectorPoints;
 
     std::copy_if(
@@ -127,7 +127,7 @@ std::vector<RoboCompLidar3D::TPoint> SpecificWorker::filterClosePoints(const std
             points.end(),
             std::back_inserter(vectorPoints),
             [this](const auto& p) {
-                return std::hypot(p.x,p.y,p.z) < MIN_DISTANCE + 500;
+                return std::hypot(p.x,p.y,p.z) < MIN_DISTANCE + 600;
             });
     return vectorPoints;
 }
@@ -149,14 +149,10 @@ void SpecificWorker::compute() {
     }
 
     auto vectorPoints = filterLidarPoints(ldata);
-    auto obstaclePoints = filterObstacles(ldata, vectorPoints);
-
-
+//    auto obstaclePoints = filterObstacles(ldata, vectorPoints);
+    vector<RoboCompLidar3D::TPoint> obstaclePoints{};
     auto closePoints = filterClosePoints(vectorPoints);
-
     if (vectorPoints.empty()) return;
-
-    int offset = vectorPoints.size() / 2 - vectorPoints.size() / 5;
 
     auto forwardPoints = filterForwardPoints(vectorPoints);
 
@@ -165,6 +161,7 @@ void SpecificWorker::compute() {
     if (number_turns == 4) {
         number_turns = 0;
         MIN_DISTANCE += MIN_DISTANCE_STEP;
+        this->loops++;
     }
 
     switch (estado){
@@ -197,10 +194,11 @@ void SpecificWorker::compute() {
 SpecificWorker::Estado SpecificWorker::turn(RoboCompLidar3D::TPoints points){
     static bool reset = true;
 
-    const double THRESHOLD = 3 * M_PI / 180;
+    auto first_point_ptr = std::min_element(points.begin(),points.end(),
+    [](const auto& a, const auto& b){return std::hypot(a.x, a.y) < std::hypot(b.x, b.y);});
 
     auto first_point = points[points.size()/2];
-    auto last_point = points[points.size()/2 + CENTRAL_POINTS_DIFF];
+    auto last_point = points[points.size()/2 + CENTRAL_POINTS_DIFF-(loops)*20];
 
     bool right_left;
     if(reset){
@@ -209,10 +207,8 @@ SpecificWorker::Estado SpecificWorker::turn(RoboCompLidar3D::TPoints points){
         number_turns++;
     }
 
-
     int y_diff = last_point.y-first_point.y;
     int x_diff = last_point.x-first_point.x;
-
 
     double angle = std::abs(std::atan2(y_diff, x_diff));
     auto abs_angle = angle < M_PI/2 ? angle : M_PI-angle;
@@ -251,20 +247,30 @@ SpecificWorker::Estado SpecificWorker::turn(RoboCompLidar3D::TPoints points){
 
 
 SpecificWorker::Estado SpecificWorker::straight_line(auto primer_elemento) {
-    const auto distance = std::hypot(primer_elemento.x, primer_elemento.y);
-    const float SPEED = calculateSpeed(distance);
+    enum Dir {RESET, FORWARD, BACKWARD};
+    static Dir dir=RESET;
+
+    auto distance = std::hypot(primer_elemento.x, primer_elemento.y);
+
+    if (dir == RESET)
+        dir = distance > MIN_DISTANCE ? FORWARD : BACKWARD;
+    if (dir == BACKWARD)
+        distance = 2*MIN_DISTANCE - distance;
+
+    const float SPEED = calculateSpeed(distance );
 
     qInfo() << "STRAIGHT LINE\n"
-               "\t Closest element:" << std::hypot(primer_elemento.x, primer_elemento.y)<<"\n"
+               "\t Closest element:" << distance<<"\n"
                "\t Distance:" << MIN_DISTANCE<<"\n"
                "\t Speed: " << SPEED<<"\n";
     try {
-        if (std::hypot(primer_elemento.x, primer_elemento.y) < MIN_DISTANCE) {
+        if (distance < MIN_DISTANCE) {
             omnirobot_proxy->setSpeedBase(0, 0, 0);
+            dir = RESET;
             return Estado::TURN;
         }
         else {
-            omnirobot_proxy->setSpeedBase(SPEED, 0, 0);
+            omnirobot_proxy->setSpeedBase(dir==FORWARD? SPEED : -SPEED, 0, 0);
             return  Estado::STRAIGHT_LINE;
         }
     }
@@ -281,19 +287,23 @@ double SpecificWorker::calculateSpeed(double distance) const {
 }
 
 SpecificWorker::Estado SpecificWorker::follow_wall(auto closest_wall_point, auto closest_forward_point) {
-    const float THRESHOLD = 100;
-    const auto distance = std::hypot(closest_forward_point.x, closest_forward_point.y);
+    const float THRESHOLD = 20;
+    auto distance = std::hypot(closest_forward_point.x, closest_forward_point.y);
+
+    if (number_turns == 3) distance -= MIN_DISTANCE_STEP;
     const float SPEED = calculateSpeed(distance);
+
 
     qInfo() << "FOLLOW WALL\n"
             "\t Wall point: " << std::hypot(closest_wall_point.x, closest_wall_point.y)<<"\n"
             "\t Forward point: " << std::hypot(closest_forward_point.x, closest_forward_point.y)<<"\n"
+            "\t Distance: " << distance<<"\n"
             "\t Turns: " << number_turns << "\n"
             "\t Distance: " << MIN_DISTANCE<<"\n"
             "\t Speed: " << SPEED<<"\n";
 
     try {
-        if (std::hypot(closest_forward_point.x, closest_forward_point.y) < MIN_DISTANCE) {
+        if (distance < MIN_DISTANCE) {
             omnirobot_proxy->setSpeedBase(0, 0, 0);
             return Estado::TURN;
         } if (std::hypot(closest_wall_point.x, closest_wall_point.y) < MIN_DISTANCE-THRESHOLD) {
