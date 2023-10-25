@@ -53,6 +53,7 @@ private:
     float MAX_FORWARD_SPEED = 2.5;
     float MIN_FORWARD_SPEED = 0.5;
     float ROTATION_SPEED = 1.0;
+    float MIN_ROTATION_SPEED = 0.5;
     float LATERAL_SPEED = 1.0;
 
     bool startup_check_flag;

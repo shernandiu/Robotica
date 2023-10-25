@@ -215,21 +215,27 @@ SpecificWorker::Estado SpecificWorker::turn(RoboCompLidar3D::TPoints points){
 
 
     double angle = std::abs(std::atan2(y_diff, x_diff));
+    auto abs_angle = angle < M_PI/2 ? angle : M_PI-angle;
+    auto rotation_speed = abs_angle < M_PI/4 ? ROTATION_SPEED :
+            static_cast<float>(4/M_PI*(MIN_ROTATION_SPEED-ROTATION_SPEED)
+                                *abs_angle+2*ROTATION_SPEED-MIN_ROTATION_SPEED);
 
     qInfo() << "TURN\n"
         "\t Angle: " << angle*180/M_PI<<"\n"
+        "\t Abs Angle: " << abs_angle*180/M_PI<<"\n"
         "\t X diff: " << x_diff<<"\n"
         "\t Turns: " << number_turns << "\n"
-        "\t Distance: " << MIN_DISTANCE<<"\n";
+        "\t Distance: " << MIN_DISTANCE<<"\n"
+        "\t Speed: " << rotation_speed <<"\n";
 
     try {
 //        if (std::abs(angle - M_PI/2) > THRESHOLD) {
         if (right_left && angle < M_PI/2) {
-            omnirobot_proxy->setSpeedBase(0, 0,  1 );
+            omnirobot_proxy->setSpeedBase(0, 0,  rotation_speed );
             return Estado::TURN;
         }
         if (!right_left && angle > M_PI/2) {
-            omnirobot_proxy->setSpeedBase(0, 0,  -1);
+            omnirobot_proxy->setSpeedBase(0, 0,  -rotation_speed);
             return Estado::TURN;
         }
         else {
