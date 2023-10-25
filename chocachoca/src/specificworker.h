@@ -48,14 +48,15 @@ public slots:
 	void initialize(int period);
 private:
     const float INITIAL_MIN_DISTANCE = 600;
+    const float SLOW_DISTANCE = 1500;
     float MIN_DISTANCE = INITIAL_MIN_DISTANCE;
-    const float MIN_DISTANCE_STEP = 200;
+    const float MIN_DISTANCE_STEP = 130;
     int number_turns = -1;
     int loops = 0;
-    float MAX_FORWARD_SPEED = 2.5;
-    float MIN_FORWARD_SPEED = 0.1;
+    float MAX_FORWARD_SPEED = 3;
+    float MIN_FORWARD_SPEED = 0.2;
     float ROTATION_SPEED = 1.0;
-    float MIN_ROTATION_SPEED = 0.5;
+    float MIN_ROTATION_SPEED = 0.25;
     float LATERAL_SPEED = 0.5;
 
     bool startup_check_flag;

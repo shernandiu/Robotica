@@ -281,9 +281,9 @@ SpecificWorker::Estado SpecificWorker::straight_line(auto primer_elemento) {
 }
 
 double SpecificWorker::calculateSpeed(double distance) const {
-    return distance > MIN_DISTANCE * 2
-           ? MAX_FORWARD_SPEED : ((MAX_FORWARD_SPEED - MIN_FORWARD_SPEED) / (MIN_DISTANCE)) * distance
-           - (MAX_FORWARD_SPEED-2*MIN_FORWARD_SPEED);
+    return distance > MIN_DISTANCE + SLOW_DISTANCE ? MAX_FORWARD_SPEED :
+           ((MAX_FORWARD_SPEED - MIN_FORWARD_SPEED) / SLOW_DISTANCE) * distance
+           + MIN_FORWARD_SPEED - (MAX_FORWARD_SPEED-MIN_FORWARD_SPEED)/SLOW_DISTANCE*MIN_DISTANCE;
 }
 
 SpecificWorker::Estado SpecificWorker::follow_wall(auto closest_wall_point, auto closest_forward_point) {
