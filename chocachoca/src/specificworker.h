@@ -47,17 +47,19 @@ public slots:
 	int startup_check();
 	void initialize(int period);
 private:
-    const float INITIAL_MIN_DISTANCE = 600;
-    const float SLOW_DISTANCE = 1500;
-    float MIN_DISTANCE = INITIAL_MIN_DISTANCE;
-    const float MIN_DISTANCE_STEP = 150;
+    constexpr double INITIAL_MIN_DISTANCE = 600;
+    constexpr double SLOW_DISTANCE = 1500;
+    constexpr double MIN_DISTANCE = INITIAL_MIN_DISTANCE;
+    constexpr double MIN_DISTANCE_STEP = 150;
+    constexpr double MAX_FORWARD_SPEED = 3;
+    constexpr double MIN_FORWARD_SPEED = 0.2;
+    constexpr double ROTATION_SPEED = 1.0;
+    constexpr double MIN_ROTATION_SPEED = 60 * M_PI/180;
+    constexpr double SLOW_ANGLE = 0.25;
+    constexpr double LATERAL_SPEED = 2.0;
+
     int number_turns = -1;
     int loops = 0;
-    float MAX_FORWARD_SPEED = 3;
-    float MIN_FORWARD_SPEED = 0.2;
-    float ROTATION_SPEED = 1.0;
-    float MIN_ROTATION_SPEED = 0.25;
-    float LATERAL_SPEED = 2.0;
 
     bool startup_check_flag;
     AbstractGraphicViewer* viewer;
@@ -84,6 +86,7 @@ private:
                     vector<RoboCompLidar3D::TPoint> &forward_points, vector<RoboCompLidar3D::TPoint> &close_points);
 
     double calculateSpeed(double distance) const;
+    double calculateRotationSpeed(double angle) const;
 
     vector<RoboCompLidar3D::TPoint>
     filterObstacles(const RoboCompLidar3D::TPoints &points, const RoboCompLidar3D::TPoints &wall);
