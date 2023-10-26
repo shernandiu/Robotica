@@ -47,35 +47,34 @@ public slots:
 	int startup_check();
 	void initialize(int period);
 private:
-    constexpr double INITIAL_MIN_DISTANCE = 600;
-    constexpr double SLOW_DISTANCE = 1500;
-    constexpr double MIN_DISTANCE = INITIAL_MIN_DISTANCE;
-    constexpr double MIN_DISTANCE_STEP = 150;
-    constexpr double MAX_FORWARD_SPEED = 3;
-    constexpr double MIN_FORWARD_SPEED = 0.2;
-    constexpr double ROTATION_SPEED = 1.0;
-    constexpr double MIN_ROTATION_SPEED = 60 * M_PI/180;
-    constexpr double SLOW_ANGLE = 0.25;
-    constexpr double LATERAL_SPEED = 2.0;
+    static constexpr double INITIAL_MIN_DISTANCE = 600;
+    static constexpr double SLOW_DISTANCE = 1500;
+    static constexpr double MIN_DISTANCE_STEP = 200;
+    static constexpr double MAX_FORWARD_SPEED = 3;
+    static constexpr double MIN_FORWARD_SPEED = 0.25;
+    static constexpr double ROTATION_SPEED = 3.0;
+    static constexpr double MIN_ROTATION_SPEED = 0.1;
+    static constexpr double SLOW_ANGLE = 50 * M_PI/180;
+    static constexpr double LATERAL_SPEED = 2.0;
 
+    double MIN_DISTANCE = INITIAL_MIN_DISTANCE;
     int number_turns = -1;
     int loops = 0;
 
     bool startup_check_flag;
     AbstractGraphicViewer* viewer;
 
-    enum class Estado {IDLE, FOLLOW_WALL, STRAIGHT_LINE, TURN  };
+    enum class Estado {IDLE, FOLLOW_WALL, STRAIGHT_LINE, TURN, SPIRAL};
     Estado estado = Estado::STRAIGHT_LINE;
 
 
-    Estado straight_line(auto primer_elemento);
+    Estado straight_line(const auto& closest_element);
     Estado follow_wall(auto closest_wall_point, auto closest_forward_point);
     Estado turn(RoboCompLidar3D::TPoints points);
 
     // filters points too high collected by Lidar
     std::vector<RoboCompLidar3D::TPoint> filterLidarPoints(const RoboCompLidar3D::TPoints &points);
 
-    std::vector<RoboCompLidar3D::TPoint> filterForwardPoints(const std::vector<RoboCompLidar3D::TPoint>& points);
 
     RoboCompLidar3D::TPoint closestElement(const std::vector<RoboCompLidar3D::TPoint>::iterator& begin,
                                            const std::vector<RoboCompLidar3D::TPoint>::iterator& end);
@@ -94,6 +93,11 @@ private:
     void draw_lidar(RoboCompLidar3D::TPoints &points, AbstractGraphicViewer *scene,
                     vector<RoboCompLidar3D::TPoint> &forward_points, vector<RoboCompLidar3D::TPoint> &close_points,
                     vector<RoboCompLidar3D::TPoint> &obstacle_points);
+
+    vector<RoboCompLidar3D::TPoint>
+    filterForwardPoints(const vector<RoboCompLidar3D::TPoint> &points, double ref_angle, double threshold);
+
+    Estado spiral(const RoboCompLidar3D::TPoint& closest_point);
 };
 
 #endif
