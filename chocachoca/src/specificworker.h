@@ -48,17 +48,20 @@ public slots:
 	void initialize(int period);
 private:
     static constexpr double INITIAL_MIN_DISTANCE = 600;
-    static constexpr double SLOW_DISTANCE = 1500;
-    static constexpr double MIN_DISTANCE_STEP = 200;
-    static constexpr double MAX_FORWARD_SPEED = 3;
-    static constexpr double MIN_FORWARD_SPEED = 0.25;
-    static constexpr double ROTATION_SPEED = 3.0;
-    static constexpr double MIN_ROTATION_SPEED = 0.1;
-    static constexpr double SLOW_ANGLE = 50 * M_PI/180;
-    static constexpr double LATERAL_SPEED = 2.0;
+    static constexpr double SLOW_DISTANCE        = 1500;
+    static constexpr double MIN_DISTANCE_STEP    = 200;
+    static constexpr double MAX_FORWARD_SPEED    = 3.0;
+    static constexpr double MIN_FORWARD_SPEED    = 0.25;
+    static constexpr double ROTATION_SPEED       = 3.0;
+    static constexpr double MIN_ROTATION_SPEED   = 0.1;
+    static constexpr double SLOW_ANGLE           = 50 * M_PI/180;
+    static constexpr double LATERAL_SPEED        = 2.0;
 
-    static constexpr int MIN_LOOPS_SPIRAL = 4;
-    static constexpr int SPIRAL_PROBABILITY = 11;
+    static constexpr int MIN_LOOPS_SPIRAL        = 4;
+    static constexpr int SPIRAL_PROBABILITY      = 7;
+    static constexpr double SPIRAL_FORWARD_SPEED = 2.0;
+    static constexpr double SPIRAL_ROTATION_SPEED= 4.0;
+    static constexpr double SPIRAL_ROTATION_INC  = 0.003;
 
     double MIN_DISTANCE = INITIAL_MIN_DISTANCE;
     int number_turns = -1;
