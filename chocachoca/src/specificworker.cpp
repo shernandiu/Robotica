@@ -196,21 +196,21 @@ void SpecificWorker::compute() {
 }
 
 SpecificWorker::Estado SpecificWorker::turn(RoboCompLidar3D::TPoints points){
-    static enum {RESET, LEFT, RIGHT} dir = RESET;
+    static enum {RESET, FORWARD, BACKWARD} dir = RESET;
 
     auto first_point_ptr = std::min_element(points.begin(),points.end(),
     [](const auto& a, const auto& b){return std::hypot(a.x, a.y) < std::hypot(b.x, b.y);});
 
-    auto first_point = points[points.size()/2];
-    auto last_point = points[points.size()/2 + CENTRAL_POINTS_DIFF-(loops)*25];
+    auto last_point = points[points.size()/2];
+    auto first_point = points[points.size()/2 - CENTRAL_POINTS_DIFF+(loops)*10];
 
     if(dir == RESET){
-        dir = first_point.x > 0 ? LEFT : RIGHT;
+        dir = first_point.y > 0 ? FORWARD : BACKWARD;
         number_turns++;
     }
 
-    int y_diff = last_point.y-first_point.y;
-    int x_diff = last_point.x-first_point.x;
+    auto y_diff = last_point.y-first_point.y;
+    auto x_diff = last_point.x-first_point.x;
 
     double angle = std::abs(std::atan2(y_diff, x_diff));
     auto abs_angle = angle < M_PI/2 ? angle : M_PI-angle;
@@ -225,17 +225,16 @@ SpecificWorker::Estado SpecificWorker::turn(RoboCompLidar3D::TPoints points){
         "\t Speed: " << rotation_speed <<"\n"
         "\t Loops:" <<loops<<"\n";
     try {
-        if (/*dir == LEFT &&*/ angle < M_PI/2) {
+        if (dir==FORWARD && angle < M_PI/2) {
             omnirobot_proxy->setSpeedBase(0, 0, rotation_speed);
             return Estado::TURN;
-//        }if (dir == RIGHT && angle < M_PI/2) {
-//            omnirobot_proxy->setSpeedBase(0, 0, -rotation_speed);
-//            return Estado::TURN;
-        }
-        else {
+        } if (dir == BACKWARD && angle > M_PI/2) {
+            omnirobot_proxy->setSpeedBase(0, 0, -rotation_speed);
+            return Estado::TURN;
+        } else {
             omnirobot_proxy->setSpeedBase(0, 0, 0);
             dir = RESET;
-            return loops < 4 || std::rand()%5!=0 ? Estado::FOLLOW_WALL : Estado::SPIRAL;
+            return loops < 4 || std::rand()%7!=0 ? Estado::FOLLOW_WALL : Estado::SPIRAL;
 //            return Estado::FOLLOW_WALL;
         }
     } catch (const Ice::Exception &e) {
@@ -313,7 +312,22 @@ double SpecificWorker::calculateRotationSpeed(double angle) const {
 }
 
 SpecificWorker::Estado SpecificWorker::follow_wall(auto closest_wall_point, auto closest_forward_point) {
-    const float THRESHOLD = 120;
+    constexpr float THRESHOLD = 100;
+    static bool reset = false;
+    static RoboCompLidar3D::TPoint first_fw_point = closest_forward_point;
+    static RoboCompLidar3D::TPoint first_wl_point = closest_wall_point;
+
+    // Min distance is bigger than the room
+    if ((first_fw_point.x * closest_forward_point.x < 0 && first_fw_point.y * closest_forward_point.y < 0) ||
+            (first_wl_point.x * closest_wall_point.x < 0 && first_wl_point.y * closest_wall_point.y < 0))
+        return Estado::SPIRAL;
+
+    if (reset){
+        first_fw_point = closest_forward_point;
+        first_wl_point = closest_wall_point;
+        reset = false;
+    }
+
     auto distance = std::hypot(closest_forward_point.x, closest_forward_point.y);
     const auto wall_distance = std::hypot(closest_wall_point.x, closest_wall_point.y);
     if (number_turns == 3) distance -= MIN_DISTANCE_STEP;
@@ -335,8 +349,9 @@ SpecificWorker::Estado SpecificWorker::follow_wall(auto closest_wall_point, auto
 
     try {
         if (distance < MIN_DISTANCE) {
-            omnirobot_proxy->setSpeedBase(0, 0, 0);
+            omnirobot_proxy->setSpeedBase(0, 0, ROTATION_SPEED);
 //            return loops < 1 ? Estado::TURN : Estado::SPIRAL;
+            reset = true;
             return Estado::TURN;
         }
         omnirobot_proxy->setSpeedBase(forward_speed,
@@ -358,21 +373,24 @@ SpecificWorker::Estado SpecificWorker::spiral(const RoboCompLidar3D::TPoint& clo
     if (reset) {
         _v_adv = 1.7;
 //        _v_rot = 4;
-        _v_rot = 1.0/3.0;
+        _v_rot = 1.0/4.0;
     }
     reset = false;
+
+    auto v = 1/_v_rot;
 
     qInfo() << "SPIRAL\n"
                "\t Speed: " << _v_adv <<"\n"
                "\t Rot Speed: " << _v_rot <<"\n"
+               "\t V: " << v <<"\n"
                "\t Turns: " << number_turns << "\n"
                "\t Loops:" <<loops<<"\n";
 
 //    if (std::hypot(closest_point.x, closest_point.y) > 600 && _v_rot < 5) {
     if (std::hypot(closest_point.x, closest_point.y) > 600 && std::rand()%1000 != 0) {
 //        _v_adv -= 0.001;
-        _v_rot += 0.1;
-        omnirobot_proxy->setSpeedBase( _v_adv , 0, 1/_v_rot );
+        _v_rot += 0.003;
+        omnirobot_proxy->setSpeedBase( _v_adv , 0, v );
         return Estado::SPIRAL;
     } else {
         omnirobot_proxy->setSpeedBase(0, 0, 0);
