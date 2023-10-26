@@ -57,6 +57,9 @@ private:
     static constexpr double SLOW_ANGLE = 50 * M_PI/180;
     static constexpr double LATERAL_SPEED = 2.0;
 
+    static constexpr int MIN_LOOPS_SPIRAL = 4;
+    static constexpr int SPIRAL_PROBABILITY = 11;
+
     double MIN_DISTANCE = INITIAL_MIN_DISTANCE;
     int number_turns = -1;
     int loops = 0;

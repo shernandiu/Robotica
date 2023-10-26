@@ -202,7 +202,7 @@ SpecificWorker::Estado SpecificWorker::turn(RoboCompLidar3D::TPoints points){
     [](const auto& a, const auto& b){return std::hypot(a.x, a.y) < std::hypot(b.x, b.y);});
 
     auto last_point = points[points.size()/2];
-    auto first_point = points[points.size()/2 - CENTRAL_POINTS_DIFF+(loops)*10];
+    auto first_point = points[points.size()/2 - CENTRAL_POINTS_DIFF+ loops*10];
 
     if(dir == RESET){
         dir = first_point.y > 0 ? FORWARD : BACKWARD;
@@ -234,7 +234,7 @@ SpecificWorker::Estado SpecificWorker::turn(RoboCompLidar3D::TPoints points){
         } else {
             omnirobot_proxy->setSpeedBase(0, 0, 0);
             dir = RESET;
-            return loops < 4 || std::rand()%7!=0 ? Estado::FOLLOW_WALL : Estado::SPIRAL;
+            return loops < MIN_LOOPS_SPIRAL || std::rand()%SPIRAL_PROBABILITY !=0 ? Estado::FOLLOW_WALL : Estado::SPIRAL;
 //            return Estado::FOLLOW_WALL;
         }
     } catch (const Ice::Exception &e) {
@@ -245,20 +245,21 @@ SpecificWorker::Estado SpecificWorker::turn(RoboCompLidar3D::TPoints points){
 
 SpecificWorker::Estado SpecificWorker::straight_line(const auto& closest_element) {
     static enum { RESET, FORWARD=1, BACKWARD=2 } dir = RESET;
-    static RoboCompLidar3D::TPoint first_point = closest_element;
+    static RoboCompLidar3D::TPoint last_point = closest_element;
 
     // Min distance is bigger than the room
-    if (closest_element.x * first_point.x < 0 && closest_element.y * first_point.y < 0)
+    if (closest_element.x * last_point.x < 0 && closest_element.y * last_point.y < 0)
         return Estado::SPIRAL;
 
     auto distance = std::hypot(closest_element.x, closest_element.y);
     if (number_turns == 3) distance -= MIN_DISTANCE_STEP;
 
     auto raw_distance = distance;
-    if (dir == RESET) {
+    if (dir == RESET)
         dir = distance > MIN_DISTANCE ? FORWARD : BACKWARD;
-        first_point=closest_element;
-    }
+
+    last_point=closest_element;
+
     if (dir == BACKWARD)
         distance = 2*MIN_DISTANCE - distance;   // distance relative to MIN_DIST
     const float speed = calculateSpeed(distance);
@@ -314,19 +315,16 @@ double SpecificWorker::calculateRotationSpeed(double angle) const {
 SpecificWorker::Estado SpecificWorker::follow_wall(auto closest_wall_point, auto closest_forward_point) {
     constexpr float THRESHOLD = 100;
     static bool reset = false;
-    static RoboCompLidar3D::TPoint first_fw_point = closest_forward_point;
-    static RoboCompLidar3D::TPoint first_wl_point = closest_wall_point;
+    static RoboCompLidar3D::TPoint last_fw_point = closest_forward_point;
+    static RoboCompLidar3D::TPoint last_wl_point = closest_wall_point;
 
     // Min distance is bigger than the room
-    if ((first_fw_point.x * closest_forward_point.x < 0 && first_fw_point.y * closest_forward_point.y < 0) ||
-            (first_wl_point.x * closest_wall_point.x < 0 && first_wl_point.y * closest_wall_point.y < 0))
+    if ((last_fw_point.x * closest_forward_point.x < 0 && last_fw_point.y * closest_forward_point.y < 0) ||
+        (last_wl_point.x * closest_wall_point.x < 0 && last_wl_point.y * closest_wall_point.y < 0))
         return Estado::SPIRAL;
 
-    if (reset){
-        first_fw_point = closest_forward_point;
-        first_wl_point = closest_wall_point;
-        reset = false;
-    }
+    last_fw_point = closest_forward_point;
+    last_wl_point = closest_wall_point;
 
     auto distance = std::hypot(closest_forward_point.x, closest_forward_point.y);
     const auto wall_distance = std::hypot(closest_wall_point.x, closest_wall_point.y);
@@ -371,8 +369,7 @@ SpecificWorker::Estado SpecificWorker::spiral(const RoboCompLidar3D::TPoint& clo
     static bool reset = true;
 
     if (reset) {
-        _v_adv = 1.7;
-//        _v_rot = 4;
+        _v_adv = 2;
         _v_rot = 1.0/4.0;
     }
     reset = false;
@@ -388,7 +385,6 @@ SpecificWorker::Estado SpecificWorker::spiral(const RoboCompLidar3D::TPoint& clo
 
 //    if (std::hypot(closest_point.x, closest_point.y) > 600 && _v_rot < 5) {
     if (std::hypot(closest_point.x, closest_point.y) > 600 && std::rand()%1000 != 0) {
-//        _v_adv -= 0.001;
         _v_rot += 0.003;
         omnirobot_proxy->setSpeedBase( _v_adv , 0, v );
         return Estado::SPIRAL;
@@ -411,28 +407,18 @@ void SpecificWorker::draw_lidar(RoboCompLidar3D::TPoints& points, AbstractGraphi
                                 std::vector<RoboCompLidar3D::TPoint>& close_points,
                                 std::vector<RoboCompLidar3D::TPoint>& obstacle_points) {
     static std::vector<QGraphicsItem *> borrar;
-//    std::for_each(borrar.begin(),borrar.end(),[this](auto a){viewer->scene.removeItem(a);});
-
-
-    for (auto &p: borrar) {
-        viewer->scene.removeItem(p);
-        delete p;
-    }
-
-
+    std::ranges::for_each(borrar,[this](auto& a){viewer->scene.removeItem(a); delete a;});
     borrar.clear();
-    float i = 0;
+
     for (const auto &p: points) {
         QColor color;
 
-        color.setNamedColor(i/points.size() > 0.4 && i/points.size() < 0.6 ?"Green":"Red");
+        color.setNamedColor("Red");
         auto point = viewer->scene.addRect(-25, -25, 50, 50,
                                            QPen(color),
                                            QBrush(color));
         point->setPos(p.x, p.y);
         borrar.push_back(point);
-
-        i++;
     }
 
     for (const auto &p: forward_points) {
@@ -442,8 +428,6 @@ void SpecificWorker::draw_lidar(RoboCompLidar3D::TPoints& points, AbstractGraphi
                                            QBrush(color));
         point->setPos(p.x, p.y);
         borrar.push_back(point);
-
-        i++;
     }
     for (const auto &p: close_points) {
         QColor color("Cyan");
@@ -452,19 +436,15 @@ void SpecificWorker::draw_lidar(RoboCompLidar3D::TPoints& points, AbstractGraphi
                                            QBrush(color));
         point->setPos(p.x, p.y);
         borrar.push_back(point);
-
-        i++;
     }
-    for (const auto &p: obstacle_points) {
-            QColor color("Brown");
-        auto point = viewer->scene.addRect(-25, -25, 50, 50,
-                                           QPen(color),
-                                           QBrush(color));
-        point->setPos(p.x, p.y);
-        borrar.push_back(point);
-
-        i++;
-    }
+//    for (const auto &p: obstacle_points) {
+//            QColor color("Brown");
+//        auto point = viewer->scene.addRect(-25, -25, 50, 50,
+//                                           QPen(color),
+//                                           QBrush(color));
+//        point->setPos(p.x, p.y);
+//        borrar.push_back(point);
+//    }
 
     auto p = points[close_points.size()/2];
     auto point = viewer->scene.addRect(-50, -50, 100, 100,
@@ -474,7 +454,7 @@ void SpecificWorker::draw_lidar(RoboCompLidar3D::TPoints& points, AbstractGraphi
     borrar.push_back(point);
 
     try {
-        p = close_points.at(close_points.size() / 2 + CENTRAL_POINTS_DIFF);
+        p = close_points.at(close_points.size() / 2 - CENTRAL_POINTS_DIFF + loops*10);
         point = viewer->scene.addRect(-50, -50, 100, 100,
                                       QPen(QColor("Yellow")),
                                       QBrush(QColor("Yellow")));
