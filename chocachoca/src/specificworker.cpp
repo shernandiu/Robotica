@@ -98,9 +98,53 @@ RoboCompLidar3D::TPoints SpecificWorker::filterClosePoints(const RoboCompLidar3D
     return vectorPoints;
 }
 
-RoboCompLidar3D::TPoint SpecificWorker::closestElement( const RoboCompLidar3D::TPoints& points) {
+RoboCompLidar3D::TPoint SpecificWorker::closestElement(const RoboCompLidar3D::TPoints& points) {
     return *std::ranges::min_element(points,
         [](const auto& a, const auto& b) {return std::hypot(a.x, a.y, a.z) < std::hypot(b.x, b.y, b.z);});
+}
+
+void SpecificWorker::calculateMaxDistance(const std::vector<RoboCompLidar3D::TPoint>& points) {
+    max_distance.fill(0);
+    std::ranges::for_each(points, [&](const auto& p) {
+        auto angle = std::atan2(p.y, p.x) + M_PI;
+        auto index = std::static_cast<int>(angle/(2*M_PI)*max_distance.size());
+        auto mod = p.x * p.x + p.y * p.y;
+        max_distance[index] = MAX(max_distance[index], mod);
+        });
+}
+
+bool SpecificWorker::isAnObstacle(const RoboCompLidar3D::TPoint& point) {
+    auto angle = std::atan2(point.y, point.x) + M_PI;
+    auto index = std::static_cast<int>(angle/(2*M_PI)*max_distance.size());
+    auto mod = p.x * p.x + p.y * p.y;
+    return mod < max_distance[index] - IS_OBSTACLE_THRESHOLD;
+}
+
+std::vector<RoboCompLidar3D::TPoint> SpecificWorker::filterObstacles(const std::vector<RoboCompLidar3D::TPoint>& points) {
+    return points | std::views::filter(isAnObstacle);
+}
+
+SpecificWorker::Estado SpecificWorker::avoidObstacle(const RoboCompLidar3D::TPoint& closest_fw_point
+        const RoboCompLidar3D::TPoint& closest_obstacle) {
+    try {
+        if (!isAnObstacle(closest_fw_point)) {
+            omnirobot_proxy->setSpeedBase(0, 0, 0);
+            return Estado::TURN; 
+        } if (std::hypot(closest_fw_point.x, closest_fw_point.y) <= OBSTACLE_DISTANCE) {
+            omnirobot_proxy->setSpeedBase(0, 1.0, 0);
+            return Estado::AVOID_OBSTACLE;
+        } if (closest_obstacle.y > -100) {
+            omnirobot_proxy->setSpeedBase(1.0, 0,);
+            return Estado::AVOID_OBSTACLE;
+        } else {
+           omnirobot_proxy->setSpeedBase(1.0, 0,);
+            return Estado::FOLLOW_WALL;
+        }
+    } catch (const Ice::Exception &e) {
+        std::cout << "Error controlling robot" << e << std::endl;
+        return Estado::IDLE;
+    }
+
 }
 
 double SpecificWorker::calculateSpeed(double distance) const {
@@ -292,7 +336,11 @@ SpecificWorker::Estado SpecificWorker::follow_wall(const RoboCompLidar3D::TPoint
             "\t Lat Speed: " << lateral_speed << "\n"
             "\t Loops:" <<loops<<"\n";
     try {
-        if (distance < MIN_DISTANCE) {
+        if (isAnObstacle(closest_forward_point) && distance < OBSTACLE_DISTANCE) {
+            omnirobot_proxy->setSpeedBase(0, 1, 0);
+            return Estado::AVOID_OBSTACLE;
+        }
+        if (!isAnObstacle(closest_forward_point) && distance < MIN_DISTANCE) {
             number_turns++;
             omnirobot_proxy->setSpeedBase(0, 0, ROTATION_SPEED);
             return Estado::TURN;
