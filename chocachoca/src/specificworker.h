@@ -73,37 +73,24 @@ private:
     enum class Estado {IDLE, FOLLOW_WALL, STRAIGHT_LINE, TURN, SPIRAL};
     Estado estado = Estado::STRAIGHT_LINE;
 
-
-    Estado straight_line(const auto& closest_element);
-    Estado follow_wall(auto closest_wall_point, auto closest_forward_point);
-    Estado turn(RoboCompLidar3D::TPoints points);
+    Estado straight_line(const RoboCompLidar3D::TPoint& closest_element);
+    Estado follow_wall(const RoboCompLidar3D::TPoint& closest_wall_point, const RoboCompLidar3D::TPoint& closest_forward_point);
+    Estado turn(const RoboCompLidar3D::TPoints& points);
+    Estado spiral(const RoboCompLidar3D::TPoint& closest_point);
 
     // filters points too high collected by Lidar
-    std::vector<RoboCompLidar3D::TPoint> filterLidarPoints(const RoboCompLidar3D::TPoints &points);
-
-
-    RoboCompLidar3D::TPoint closestElement(const std::vector<RoboCompLidar3D::TPoint>::iterator& begin,
-                                           const std::vector<RoboCompLidar3D::TPoint>::iterator& end);
-
-    vector<RoboCompLidar3D::TPoint> filterClosePoints(const vector<RoboCompLidar3D::TPoint> &points);
-
-    void draw_lidar(RoboCompLidar3D::TPoints &points, AbstractGraphicViewer *scene,
-                    vector<RoboCompLidar3D::TPoint> &forward_points, vector<RoboCompLidar3D::TPoint> &close_points);
+    RoboCompLidar3D::TPoints filterLidarPoints(const RoboCompLidar3D::TPoints& points);
+    RoboCompLidar3D::TPoints filterClosePoints(const RoboCompLidar3D::TPoints& points);
+    RoboCompLidar3D::TPoint  closestElement(const RoboCompLidar3D::TPoints& points);
 
     double calculateSpeed(double distance) const;
     double calculateRotationSpeed(double angle) const;
 
-    vector<RoboCompLidar3D::TPoint>
-    filterObstacles(const RoboCompLidar3D::TPoints &points, const RoboCompLidar3D::TPoints &wall);
+    vector<RoboCompLidar3D::TPoint> filterObstacles(const RoboCompLidar3D::TPoints& points, const RoboCompLidar3D::TPoints& wall);
 
-    void draw_lidar(RoboCompLidar3D::TPoints &points, AbstractGraphicViewer *scene,
-                    vector<RoboCompLidar3D::TPoint> &forward_points, vector<RoboCompLidar3D::TPoint> &close_points,
-                    vector<RoboCompLidar3D::TPoint> &obstacle_points);
-
-    vector<RoboCompLidar3D::TPoint>
-    filterForwardPoints(const vector<RoboCompLidar3D::TPoint> &points, double ref_angle, double threshold);
-
-    Estado spiral(const RoboCompLidar3D::TPoint& closest_point);
+    void draw_lidar(const RoboCompLidar3D::TPoints& points, AbstractGraphicViewer *scene,
+                    const RoboCompLidar3D::TPoints& forward_points, const RoboCompLidar3D::TPoints& close_points,
+                    const RoboCompLidar3D::TPoints& obstacle_points);
 };
 
 #endif
