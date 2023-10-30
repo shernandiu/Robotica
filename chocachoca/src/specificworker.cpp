@@ -76,7 +76,7 @@ RoboCompLidar3D::TPoints SpecificWorker::filterLidarPoints(const RoboCompLidar3D
     const float Z_MAXHEIGHT = 2000;
     RoboCompLidar3D::TPoints vectorPoints;
     std::ranges::copy_if( points, std::back_inserter(vectorPoints),
-        [=](const auto& a) {return a.z < Z_MAXHEIGHT});
+        [=](const auto& a) {return a.z < Z_MAXHEIGHT;});
     return vectorPoints;
 }
 
@@ -130,7 +130,7 @@ void SpecificWorker::compute() {
 
     auto closePoints = filterClosePoints(vectorPoints);
     auto forwardPoints = filterForwardPoints(vectorPoints);
-    draw_lidar(vectorPoints, viewer, forwardPoints, closePoints, obstaclePoints);
+    draw_lidar(vectorPoints, viewer, forwardPoints, closePoints);
 
     if (number_turns == 4) {
         number_turns = 0;
@@ -158,13 +158,13 @@ void SpecificWorker::compute() {
         case Estado::IDLE:
             break;
         case Estado::SPIRAL: {
-            auto closest_forward_point = closestElement(forwardPoints.begin(), forwardPoints.end());
+            auto closest_forward_point = closestElement(forwardPoints);
             estado = spiral(closest_forward_point);
         }
     }
 }
 
-SpecificWorker::Estado SpecificWorker::straight_line(const auto& closest_element) {
+SpecificWorker::Estado SpecificWorker::straight_line(const RoboCompLidar3D::TPoint& closest_element) {
     static enum { RESET, FORWARD, BACKWARD} dir = RESET;
     static RoboCompLidar3D::TPoint last_point = closest_element;
 
@@ -218,7 +218,7 @@ SpecificWorker::Estado SpecificWorker::straight_line(const auto& closest_element
     }
 }
 
-SpecificWorker::Estado SpecificWorker::turn(RoboCompLidar3D::TPoints& points) {
+SpecificWorker::Estado SpecificWorker::turn(const RoboCompLidar3D::TPoints& points) {
     static enum {RESET, FORWARD, BACKWARD} dir = RESET;
 
     auto first_point = points[points.size()/2 - CENTRAL_POINTS_DIFF+ loops*10];
@@ -260,7 +260,7 @@ SpecificWorker::Estado SpecificWorker::turn(RoboCompLidar3D::TPoints& points) {
     }
 }
 
-SpecificWorker::Estado SpecificWorker::follow_wall(auto& closest_wall_point, auto& closest_forward_point) {
+SpecificWorker::Estado SpecificWorker::follow_wall(const RoboCompLidar3D::TPoint& closest_wall_point, const RoboCompLidar3D::TPoint& closest_forward_point) {
     constexpr float THRESHOLD = 100;
     static RoboCompLidar3D::TPoint last_fw_point = closest_forward_point;
     static RoboCompLidar3D::TPoint last_wl_point = closest_wall_point;
@@ -293,7 +293,7 @@ SpecificWorker::Estado SpecificWorker::follow_wall(auto& closest_wall_point, aut
             "\t Loops:" <<loops<<"\n";
     try {
         if (distance < MIN_DISTANCE) {
-            number_turns++
+            number_turns++;
             omnirobot_proxy->setSpeedBase(0, 0, ROTATION_SPEED);
             return Estado::TURN;
         }
@@ -309,14 +309,14 @@ SpecificWorker::Estado SpecificWorker::follow_wall(auto& closest_wall_point, aut
 }
 
 SpecificWorker::Estado SpecificWorker::spiral(const RoboCompLidar3D::TPoint& closest_point) {
-    static enum { RESET, CLOCKWISE=0, ANTICLOCKWISE=1 } dir = RESET;
+    static enum Dir { RESET=-1, CLOCKWISE=0, ANTICLOCKWISE=1 } dir = RESET;
     static float rotation_speed_inverse = 1.0 / SPIRAL_ROTATION_SPEED;
     if (dir == RESET) {
         rotation_speed_inverse = 1.0 / SPIRAL_ROTATION_SPEED;
-        dir = rand() % 2;
+        dir = static_cast<Dir>(rand() % 2);
     }
-    const auto rotation_speed = dir == ANTICLOCKWISE ? 1.0 : -1.0 / rotation_speed_inverse;
-        rotation_speed_inverse += SPIRAL_ROTATION_INC;
+    const auto rotation_speed = (dir == ANTICLOCKWISE ? 1.0 : -1.0) / rotation_speed_inverse;
+    rotation_speed_inverse += SPIRAL_ROTATION_INC;
     qInfo() << "SPIRAL\n"
                "\t Speed: " << SPIRAL_FORWARD_SPEED <<"\n"
                "\t Rot Speed: " << rotation_speed_inverse << "\n"
@@ -341,8 +341,7 @@ int SpecificWorker::startup_check() {
 
 void SpecificWorker::draw_lidar(const RoboCompLidar3D::TPoints& points, AbstractGraphicViewer *scene,
                                 const RoboCompLidar3D::TPoints& forward_points,
-                                const RoboCompLidar3D::TPoints& close_points,
-                                const RoboCompLidar3D::TPoints& obstacle_points) {
+                                const RoboCompLidar3D::TPoints& close_points) {
     static std::vector<QGraphicsItem *> borrar;
     std::ranges::for_each(borrar,[this](auto& a) {viewer->scene.removeItem(a); delete a;});
     borrar.clear();
@@ -374,14 +373,6 @@ void SpecificWorker::draw_lidar(const RoboCompLidar3D::TPoints& points, Abstract
         point->setPos(p.x, p.y);
         borrar.push_back(point);
     }
-//    for (const auto &p: obstacle_points) {
-//            QColor color("Brown");
-//        auto point = viewer->scene.addRect(-25, -25, 50, 50,
-//                                           QPen(color),
-//                                           QBrush(color));
-//        point->setPos(p.x, p.y);
-//        borrar.push_back(point);
-//    }
 
     auto p = points[close_points.size()/2];
     auto point = viewer->scene.addRect(-50, -50, 100, 100,

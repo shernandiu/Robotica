@@ -86,11 +86,11 @@ private:
     double calculateSpeed(double distance) const;
     double calculateRotationSpeed(double angle) const;
 
-    vector<RoboCompLidar3D::TPoint> filterObstacles(const RoboCompLidar3D::TPoints& points, const RoboCompLidar3D::TPoints& wall);
-
     void draw_lidar(const RoboCompLidar3D::TPoints& points, AbstractGraphicViewer *scene,
-                    const RoboCompLidar3D::TPoints& forward_points, const RoboCompLidar3D::TPoints& close_points,
-                    const RoboCompLidar3D::TPoints& obstacle_points);
+                    const RoboCompLidar3D::TPoints& forward_points, const RoboCompLidar3D::TPoints& close_points);
+
+    RoboCompLidar3D::TPoints
+    filterForwardPoints(const RoboCompLidar3D::TPoints &points, double ref_angle, double threshold);
 };
 
 #endif
