@@ -16,6 +16,7 @@
  *    You should have received a copy of the GNU General Public License
  *    along with RoboComp.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <ranges>
 #include "specificworker.h"
 
 #define DEGREE_TO_RADIAN(x) x * (M_PI / 180)
@@ -103,41 +104,44 @@ RoboCompLidar3D::TPoint SpecificWorker::closestElement(const RoboCompLidar3D::TP
         [](const auto& a, const auto& b) {return std::hypot(a.x, a.y, a.z) < std::hypot(b.x, b.y, b.z);});
 }
 
-void SpecificWorker::calculateMaxDistance(const std::vector<RoboCompLidar3D::TPoint>& points) {
+void SpecificWorker::calculateMaxDistance(const RoboCompLidar3D::TPoints& points) {
     max_distance.fill(0);
-    std::ranges::for_each(points, [&](const auto& p) {
+    std::ranges::for_each(points, [this](const auto& p) {
         auto angle = std::atan2(p.y, p.x) + M_PI;
-        auto index = std::static_cast<int>(angle/(2*M_PI)*max_distance.size());
-        auto mod = p.x * p.x + p.y * p.y;
-        max_distance[index] = MAX(max_distance[index], mod);
+        auto index = static_cast<int>(angle/(2*M_PI)*max_distance.size());
+        double mod = std::hypot(p.x, p.y);
+        max_distance[index] = std::max(max_distance.at(index), mod);
         });
 }
 
 bool SpecificWorker::isAnObstacle(const RoboCompLidar3D::TPoint& point) {
     auto angle = std::atan2(point.y, point.x) + M_PI;
-    auto index = std::static_cast<int>(angle/(2*M_PI)*max_distance.size());
-    auto mod = p.x * p.x + p.y * p.y;
-    return mod < max_distance[index] - IS_OBSTACLE_THRESHOLD;
+    auto index = static_cast<int>(angle/(2*M_PI)*max_distance.size());
+    auto mod = std::hypot(point.x, point.y);
+    return mod < (max_distance[index] - IS_OBSTACLE_THRESHOLD);
 }
 
 std::vector<RoboCompLidar3D::TPoint> SpecificWorker::filterObstacles(const std::vector<RoboCompLidar3D::TPoint>& points) {
-    return points | std::views::filter(isAnObstacle);
+    RoboCompLidar3D::TPoints vectorPoints;
+    std::ranges::copy_if( points, std::back_inserter(vectorPoints),
+                          [this](const auto& p){return isAnObstacle(p);});
+    return vectorPoints;
 }
 
-SpecificWorker::Estado SpecificWorker::avoidObstacle(const RoboCompLidar3D::TPoint& closest_fw_point
+SpecificWorker::Estado SpecificWorker::avoidObstacle(const RoboCompLidar3D::TPoint& closest_fw_point,
         const RoboCompLidar3D::TPoint& closest_obstacle) {
     try {
-        if (!isAnObstacle(closest_fw_point)) {
+        if (!isAnObstacle(closest_fw_point) && std::hypot(closest_fw_point.x, closest_fw_point.y) <= OBSTACLE_DISTANCE) {
             omnirobot_proxy->setSpeedBase(0, 0, 0);
             return Estado::TURN; 
         } if (std::hypot(closest_fw_point.x, closest_fw_point.y) <= OBSTACLE_DISTANCE) {
-            omnirobot_proxy->setSpeedBase(0, 1.0, 0);
+            omnirobot_proxy->setSpeedBase(0, 2.0, 0);
             return Estado::AVOID_OBSTACLE;
         } if (closest_obstacle.y > -100) {
-            omnirobot_proxy->setSpeedBase(1.0, 0,);
+            omnirobot_proxy->setSpeedBase(2.0, 0,0);
             return Estado::AVOID_OBSTACLE;
         } else {
-           omnirobot_proxy->setSpeedBase(1.0, 0,);
+           omnirobot_proxy->setSpeedBase(1.0, 0,0);
             return Estado::FOLLOW_WALL;
         }
     } catch (const Ice::Exception &e) {
@@ -150,7 +154,7 @@ SpecificWorker::Estado SpecificWorker::avoidObstacle(const RoboCompLidar3D::TPoi
 double SpecificWorker::calculateSpeed(double distance) const {
     constexpr auto slope = (MAX_FORWARD_SPEED - MIN_FORWARD_SPEED) / SLOW_DISTANCE;
     return distance > MIN_DISTANCE + SLOW_DISTANCE ? MAX_FORWARD_SPEED :
-           slope * distance + MIN_FORWARD_SPEED - slope*MIN_DISTANCE;
+           std::max(MIN_FORWARD_SPEED, slope * distance + MIN_FORWARD_SPEED - slope*MIN_DISTANCE);
 }
 
 double SpecificWorker::calculateRotationSpeed(double angle) const {
@@ -172,9 +176,12 @@ void SpecificWorker::compute() {
     auto vectorPoints = filterLidarPoints(ldata);
     if (vectorPoints.empty()) return;
 
+    calculateMaxDistance(vectorPoints);
+
     auto closePoints = filterClosePoints(vectorPoints);
     auto forwardPoints = filterForwardPoints(vectorPoints);
-    draw_lidar(vectorPoints, viewer, forwardPoints, closePoints);
+    auto obstacles = filterObstacles(vectorPoints);
+    draw_lidar(vectorPoints, viewer, forwardPoints, closePoints, obstacles);
 
     if (number_turns == 4) {
         number_turns = 0;
@@ -204,6 +211,11 @@ void SpecificWorker::compute() {
         case Estado::SPIRAL: {
             auto closest_forward_point = closestElement(forwardPoints);
             estado = spiral(closest_forward_point);
+        }
+        case Estado::AVOID_OBSTACLE: {
+            auto closest_obstacle = closestElement(obstacles);
+            auto closest_forward_point = closestElement(forwardPoints);
+            estado = avoidObstacle(closest_forward_point, closest_obstacle);
         }
     }
 }
@@ -389,7 +401,8 @@ int SpecificWorker::startup_check() {
 
 void SpecificWorker::draw_lidar(const RoboCompLidar3D::TPoints& points, AbstractGraphicViewer *scene,
                                 const RoboCompLidar3D::TPoints& forward_points,
-                                const RoboCompLidar3D::TPoints& close_points) {
+                                const RoboCompLidar3D::TPoints& close_points,
+                                const RoboCompLidar3D::TPoints& obstacles) {
     static std::vector<QGraphicsItem *> borrar;
     std::ranges::for_each(borrar,[this](auto& a) {viewer->scene.removeItem(a); delete a;});
     borrar.clear();
@@ -415,6 +428,15 @@ void SpecificWorker::draw_lidar(const RoboCompLidar3D::TPoints& points, Abstract
     }
     for (const auto &p: close_points) {
         QColor color("Cyan");
+        auto point = viewer->scene.addRect(-25, -25, 50, 50,
+                                           QPen(color),
+                                           QBrush(color));
+        point->setPos(p.x, p.y);
+        borrar.push_back(point);
+    }
+
+    for (const auto &p: obstacles) {
+        QColor color("Orange");
         auto point = viewer->scene.addRect(-25, -25, 50, 50,
                                            QPen(color),
                                            QBrush(color));

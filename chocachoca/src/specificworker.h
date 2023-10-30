@@ -64,7 +64,7 @@ private:
     static constexpr double SPIRAL_ROTATION_INC   = 0.003;
 
     static constexpr double IS_OBSTACLE_THRESHOLD = 100;
-    static constexpr double OBSTACLE_DISTANCE     = 100;
+    static constexpr double OBSTACLE_DISTANCE     = 700;
     
     double MIN_DISTANCE = INITIAL_MIN_DISTANCE;
     int number_turns = -1;
@@ -73,7 +73,7 @@ private:
     bool startup_check_flag;
     AbstractGraphicViewer* viewer;
 
-    enum class Estado {IDLE, FOLLOW_WALL, STRAIGHT_LINE, TURN, SPIRAL};
+    enum class Estado {IDLE, FOLLOW_WALL, STRAIGHT_LINE, TURN, SPIRAL, AVOID_OBSTACLE};
     Estado estado = Estado::STRAIGHT_LINE;
 
     std::array<double, 1000> max_distance;
@@ -96,6 +96,19 @@ private:
 
     RoboCompLidar3D::TPoints
     filterForwardPoints(const RoboCompLidar3D::TPoints &points, double ref_angle, double threshold);
+
+    bool isAnObstacle(const RoboCompLidar3D::TPoint &point);
+
+    void calculateMaxDistance(const RoboCompLidar3D::TPoints &points);
+
+    vector<RoboCompLidar3D::TPoint> filterObstacles(const RoboCompLidar3D::TPoints &points);
+
+    Estado
+    avoidObstacle(const RoboCompLidar3D::TPoint &closest_fw_point, const RoboCompLidar3D::TPoint &closest_obstacle);
+
+    void draw_lidar(const RoboCompLidar3D::TPoints &points, AbstractGraphicViewer *scene,
+                    const RoboCompLidar3D::TPoints &forward_points, const RoboCompLidar3D::TPoints &close_points,
+                    const RoboCompLidar3D::TPoints &obstacles);
 };
 
 #endif
