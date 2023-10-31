@@ -30,7 +30,7 @@
 #include <genericworker.h>
 #include <abstract_graphic_viewer/abstract_graphic_viewer.h>
 
-#define CENTRAL_POINTS_DIFF 300
+#define CENTRAL_POINTS_DIFF 500
 
 class SpecificWorker : public GenericWorker
 {
@@ -47,7 +47,7 @@ public slots:
 	int startup_check();
 	void initialize(int period);
 private:
-    static constexpr double INITIAL_MIN_DISTANCE  = 600;
+    static constexpr double INITIAL_MIN_DISTANCE  = 400;
     static constexpr double SLOW_DISTANCE         = 1500;
     static constexpr double MIN_DISTANCE_STEP     = 200;
     static constexpr double MAX_FORWARD_SPEED     = 3.0;
@@ -64,7 +64,7 @@ private:
     static constexpr double SPIRAL_ROTATION_INC   = 0.003;
 
     static constexpr double IS_OBSTACLE_THRESHOLD = 100;
-    static constexpr double OBSTACLE_DISTANCE     = 700;
+    static constexpr double OBSTACLE_DISTANCE     = 600;
     
     double MIN_DISTANCE = INITIAL_MIN_DISTANCE;
     int number_turns = -1;
@@ -76,9 +76,9 @@ private:
     enum class Estado {IDLE, FOLLOW_WALL, STRAIGHT_LINE, TURN, SPIRAL, AVOID_OBSTACLE};
     Estado estado = Estado::STRAIGHT_LINE;
 
-    std::array<double, 1000> max_distance;
+    std::array<double, 300> max_distance;
 
-    Estado straight_line(const RoboCompLidar3D::TPoint& closest_element);
+    Estado straight_line(const RoboCompLidar3D::TPoint& closest_element, const RoboCompLidar3D::TPoints& obstacles);
     Estado follow_wall(const RoboCompLidar3D::TPoint& closest_wall_point, const RoboCompLidar3D::TPoint& closest_forward_point);
     Estado turn(const RoboCompLidar3D::TPoints& points);
     Estado spiral(const RoboCompLidar3D::TPoint& closest_point);
@@ -91,9 +91,6 @@ private:
     double calculateSpeed(double distance) const;
     double calculateRotationSpeed(double angle) const;
 
-    void draw_lidar(const RoboCompLidar3D::TPoints& points, AbstractGraphicViewer *scene,
-                    const RoboCompLidar3D::TPoints& forward_points, const RoboCompLidar3D::TPoints& close_points);
-
     RoboCompLidar3D::TPoints
     filterForwardPoints(const RoboCompLidar3D::TPoints &points, double ref_angle, double threshold);
 
@@ -101,7 +98,7 @@ private:
 
     void calculateMaxDistance(const RoboCompLidar3D::TPoints &points);
 
-    vector<RoboCompLidar3D::TPoint> filterObstacles(const RoboCompLidar3D::TPoints &points);
+    vector<RoboCompLidar3D::TPoint> filterObstacles(const RoboCompLidar3D::TPoints &points, bool reverse);
 
     Estado
     avoidObstacle(const RoboCompLidar3D::TPoint &closest_fw_point, const RoboCompLidar3D::TPoint &closest_obstacle);
@@ -109,6 +106,8 @@ private:
     void draw_lidar(const RoboCompLidar3D::TPoints &points, AbstractGraphicViewer *scene,
                     const RoboCompLidar3D::TPoints &forward_points, const RoboCompLidar3D::TPoints &close_points,
                     const RoboCompLidar3D::TPoints &obstacles);
+
+    double calculateSpeedObstacle(double distance) const;
 };
 
 #endif

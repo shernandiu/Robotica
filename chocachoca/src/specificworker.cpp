@@ -121,28 +121,29 @@ bool SpecificWorker::isAnObstacle(const RoboCompLidar3D::TPoint& point) {
     return mod < (max_distance[index] - IS_OBSTACLE_THRESHOLD);
 }
 
-std::vector<RoboCompLidar3D::TPoint> SpecificWorker::filterObstacles(const std::vector<RoboCompLidar3D::TPoint>& points) {
+std::vector<RoboCompLidar3D::TPoint> SpecificWorker::filterObstacles(const std::vector<RoboCompLidar3D::TPoint>& points,
+                                                                     bool reverse = false) {
     RoboCompLidar3D::TPoints vectorPoints;
     std::ranges::copy_if( points, std::back_inserter(vectorPoints),
-                          [this](const auto& p){return isAnObstacle(p);});
+                          [this, reverse](const auto& p){return isAnObstacle(p)  != reverse;});
     return vectorPoints;
 }
 
 SpecificWorker::Estado SpecificWorker::avoidObstacle(const RoboCompLidar3D::TPoint& closest_fw_point,
         const RoboCompLidar3D::TPoint& closest_obstacle) {
     try {
-        if (!isAnObstacle(closest_fw_point) && std::hypot(closest_fw_point.x, closest_fw_point.y) <= OBSTACLE_DISTANCE) {
+        if (!isAnObstacle(closest_fw_point) && std::hypot(closest_fw_point.x, closest_fw_point.y) <= MIN_DISTANCE) {
             omnirobot_proxy->setSpeedBase(0, 0, 0);
             return Estado::TURN; 
         } if (std::hypot(closest_fw_point.x, closest_fw_point.y) <= OBSTACLE_DISTANCE) {
             omnirobot_proxy->setSpeedBase(0, 2.0, 0);
             return Estado::AVOID_OBSTACLE;
-        } if (closest_obstacle.y > -100) {
+        } if (closest_obstacle.y > -OBSTACLE_DISTANCE) {
             omnirobot_proxy->setSpeedBase(2.0, 0,0);
             return Estado::AVOID_OBSTACLE;
         } else {
            omnirobot_proxy->setSpeedBase(1.0, 0,0);
-            return Estado::FOLLOW_WALL;
+            return Estado::STRAIGHT_LINE;
         }
     } catch (const Ice::Exception &e) {
         std::cout << "Error controlling robot" << e << std::endl;
@@ -155,6 +156,12 @@ double SpecificWorker::calculateSpeed(double distance) const {
     constexpr auto slope = (MAX_FORWARD_SPEED - MIN_FORWARD_SPEED) / SLOW_DISTANCE;
     return distance > MIN_DISTANCE + SLOW_DISTANCE ? MAX_FORWARD_SPEED :
            std::max(MIN_FORWARD_SPEED, slope * distance + MIN_FORWARD_SPEED - slope*MIN_DISTANCE);
+}
+
+double SpecificWorker::calculateSpeedObstacle(double distance) const {
+    constexpr auto slope = (MAX_FORWARD_SPEED - MIN_FORWARD_SPEED) / SLOW_DISTANCE;
+    return distance > OBSTACLE_DISTANCE + SLOW_DISTANCE ? MAX_FORWARD_SPEED :
+           std::max(MIN_FORWARD_SPEED, slope * distance + MIN_FORWARD_SPEED - slope*OBSTACLE_DISTANCE);
 }
 
 double SpecificWorker::calculateRotationSpeed(double angle) const {
@@ -178,9 +185,10 @@ void SpecificWorker::compute() {
 
     calculateMaxDistance(vectorPoints);
 
-    auto closePoints = filterClosePoints(vectorPoints);
     auto forwardPoints = filterForwardPoints(vectorPoints);
     auto obstacles = filterObstacles(vectorPoints);
+    auto walls = filterObstacles(vectorPoints, true);
+    auto closePoints = filterClosePoints(walls);
     draw_lidar(vectorPoints, viewer, forwardPoints, closePoints, obstacles);
 
     if (number_turns == 4) {
@@ -190,15 +198,16 @@ void SpecificWorker::compute() {
     }
     switch (estado) {
         case Estado::TURN:
-            estado = turn(closePoints);
+            if (!closePoints.empty())
+                estado = turn(closePoints);
             break;
         case Estado::STRAIGHT_LINE: {
-            auto closest_point = closestElement(vectorPoints);
-            estado = straight_line(closest_point);
+            auto closest_point = closestElement(walls);
+            estado = straight_line(closest_point, obstacles);
             break;
         }
         case Estado::FOLLOW_WALL: {
-            auto wallPoints = filterForwardPoints(vectorPoints, 0, DEGREE_TO_RADIAN(5));
+            auto wallPoints = filterForwardPoints(walls, 0, DEGREE_TO_RADIAN(5));
             if (!forwardPoints.empty() && !wallPoints.empty()) {
                 auto closest_wall_point = closestElement(wallPoints);
                 auto closest_forward_point = closestElement(forwardPoints);
@@ -211,16 +220,19 @@ void SpecificWorker::compute() {
         case Estado::SPIRAL: {
             auto closest_forward_point = closestElement(forwardPoints);
             estado = spiral(closest_forward_point);
+            break;
         }
         case Estado::AVOID_OBSTACLE: {
             auto closest_obstacle = closestElement(obstacles);
             auto closest_forward_point = closestElement(forwardPoints);
             estado = avoidObstacle(closest_forward_point, closest_obstacle);
+            break;
         }
     }
 }
 
-SpecificWorker::Estado SpecificWorker::straight_line(const RoboCompLidar3D::TPoint& closest_element) {
+SpecificWorker::Estado SpecificWorker::straight_line(const RoboCompLidar3D::TPoint& closest_element,
+                                                     const RoboCompLidar3D::TPoints& obstacles) {
     static enum { RESET, FORWARD, BACKWARD} dir = RESET;
     static RoboCompLidar3D::TPoint last_point = closest_element;
 
@@ -238,9 +250,12 @@ SpecificWorker::Estado SpecificWorker::straight_line(const RoboCompLidar3D::TPoi
     if (dir == BACKWARD)
         distance = 2*MIN_DISTANCE - distance;   // distance relative to MIN_DIST
 
-    const float speed = calculateSpeed(distance);
-    float speed_x = speed * closest_element.x/raw_distance;
-    float speed_y = speed * closest_element.y/raw_distance;
+    const auto speed = calculateSpeed(distance);
+    auto speed_x = speed * closest_element.x/raw_distance;
+    auto speed_y = speed * closest_element.y/raw_distance;
+
+
+
 
     if (dir==BACKWARD) {
         speed_x = -speed_x;
@@ -258,6 +273,15 @@ SpecificWorker::Estado SpecificWorker::straight_line(const RoboCompLidar3D::TPoi
         "\t Loops:" <<loops<<"\n";
 
     try {
+        auto fw_obstacles = filterForwardPoints(obstacles,std::atan2(closest_element.y,closest_element.x));
+        if (!fw_obstacles.empty()) {
+            auto closest_obstacle = closestElement(fw_obstacles);
+            if (std::hypot(closest_obstacle.x, closest_obstacle.y) < OBSTACLE_DISTANCE) {
+                dir = RESET;
+                omnirobot_proxy->setSpeedBase(0, 0, 0);
+                return Estado::AVOID_OBSTACLE;
+            }
+        }
         if (distance < MIN_DISTANCE) {
             dir = RESET;
             omnirobot_proxy->setSpeedBase(0, 0, 0);
@@ -277,7 +301,8 @@ SpecificWorker::Estado SpecificWorker::straight_line(const RoboCompLidar3D::TPoi
 SpecificWorker::Estado SpecificWorker::turn(const RoboCompLidar3D::TPoints& points) {
     static enum {RESET, FORWARD, BACKWARD} dir = RESET;
 
-    auto first_point = points[points.size()/2 - CENTRAL_POINTS_DIFF+ loops*10];
+//    auto first_point = points[std::max(static_cast<int>(points.size()/2 - CENTRAL_POINTS_DIFF+ loops*10), 0)];
+    auto first_point = points[std::max(static_cast<int>(points.size()/2 - CENTRAL_POINTS_DIFF+ loops*10), 0)];
     auto last_point = points[points.size()/2];
 
     if (dir == RESET)
@@ -333,7 +358,8 @@ SpecificWorker::Estado SpecificWorker::follow_wall(const RoboCompLidar3D::TPoint
     const auto wall_distance = std::hypot(closest_wall_point.x, closest_wall_point.y);
     if (number_turns == 3) distance -= MIN_DISTANCE_STEP;
 
-    const float forward_speed = calculateSpeed(distance);
+    const float forward_speed = !isAnObstacle(closest_forward_point) ?
+            calculateSpeed(distance) : calculateSpeedObstacle(distance);
     const auto rel_distance = wall_distance - MIN_DISTANCE;
     const float lateral_speed = std::abs(rel_distance)>THRESHOLD ? LATERAL_SPEED :  
             LATERAL_SPEED/(THRESHOLD*THRESHOLD)*rel_distance*rel_distance;
@@ -372,9 +398,13 @@ SpecificWorker::Estado SpecificWorker::spiral(const RoboCompLidar3D::TPoint& clo
     static enum Dir { RESET=-1, CLOCKWISE=0, ANTICLOCKWISE=1 } dir = RESET;
     static float rotation_speed_inverse = 1.0 / SPIRAL_ROTATION_SPEED;
     if (dir == RESET) {
+        if (std::hypot(closest_point.x, closest_point.y) < 1000)
+            return Estado::TURN;
         rotation_speed_inverse = 1.0 / SPIRAL_ROTATION_SPEED;
-        dir = static_cast<Dir>(rand() % 2);
-    }
+//      dir = static_cast<Dir>(rand() % 2);   LA ESPIRAL EN SENTIDO HORARIO ES MALA IDEA
+        dir = ANTICLOCKWISE;
+
+        }
     const auto rotation_speed = (dir == ANTICLOCKWISE ? 1.0 : -1.0) / rotation_speed_inverse;
     rotation_speed_inverse += SPIRAL_ROTATION_INC;
     qInfo() << "SPIRAL\n"
@@ -436,7 +466,7 @@ void SpecificWorker::draw_lidar(const RoboCompLidar3D::TPoints& points, Abstract
     }
 
     for (const auto &p: obstacles) {
-        QColor color("Orange");
+        QColor color("Green");
         auto point = viewer->scene.addRect(-25, -25, 50, 50,
                                            QPen(color),
                                            QBrush(color));
