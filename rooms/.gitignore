@@ -1,0 +1,16 @@
+bin/
+CMakeCache.txt
+CMakeFiles/
+Testing/
+cmake-build-debug/
+
+Makefile
+.idea/
+.cmake/
+.vscode/
+*.cmake
+*.ice
+src/CommonBehavior.*
+src/Lidar3D.*
+src/rooms_autogen/
+src/ui_mainUI.*
