@@ -1,4 +1,4 @@
-g/*
+/*
  *    Copyright (C) 2010 by RoboLab - University of Extremadura
  *
  *    This file is part of RoboComp

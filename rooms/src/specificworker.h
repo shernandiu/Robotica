@@ -115,7 +115,9 @@ private:
 
     Doors get_doors(const Lines &lines);
 
-    void draw_doors(const Lines &lines, AbstractGraphicViewer *viewer);
+    void draw_lines(const Lines &lines, AbstractGraphicViewer *viewer);
+
+    bool point_present(const RoboCompLidar3D::TPoint &point, const Lines &lines);
 };
 
 #endif
