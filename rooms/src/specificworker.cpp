@@ -156,11 +156,11 @@ SpecificWorker::Lines SpecificWorker::filterLidarPointsFI(const RoboCompLidar3D:
 SpecificWorker::Lines SpecificWorker::extract_lines(const RoboCompLidar3D::TPoints &points) {
     Lines lines;
     const float LOW_LOW = 0;
-    const float LOW_HIGH = 600;
-    const float MIDDLE_LOW = 600;
-    const float MIDDLE_HIGH = 1000;
-    const float HIGH_LOW = 1000;
-    const float HIGH_HIGH = 1600;
+    const float LOW_HIGH = 800;
+    const float MIDDLE_LOW = 800;
+    const float MIDDLE_HIGH = 1500;
+    const float HIGH_LOW = 1600;
+    const float HIGH_HIGH = 2000;
 
     for(const auto &p: points) {
         if(p.z > LOW_LOW and p.z < LOW_HIGH)
@@ -527,15 +527,15 @@ void SpecificWorker::draw_lines(const Lines& lines, AbstractGraphicViewer *viewe
     }
     for(const auto& line : lines.middle) {
         auto point = viewer->scene.addRect(0,0, 100, 100,
-                                           QPen("Black"),
-                                           QBrush("Black"));
+                                           QPen("Orange"),
+                                           QBrush("Orange"));
         point->setPos(line.x, line.y);
         borrar.push_back(point);
     }
     for(const auto& line : lines.high) {
         auto point = viewer->scene.addRect(0,0, 100, 100,
-                                           QPen("Black"),
-                                           QBrush("Black"));
+                                           QPen("Purple"),
+                                           QBrush("Purple"));
         point->setPos(line.x, line.y);
         borrar.push_back(point);
     }

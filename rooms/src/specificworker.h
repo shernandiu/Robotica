@@ -70,7 +70,15 @@ private:
 
     struct Door
     {
-        RoboCompLidar3D::TPoint p1, p2;
+        RoboCompLidar3D::TPoint p1, p2, middle;
+        Door(const RoboCompLidar3D::TPoint& p1, const RoboCompLidar3D::TPoint& p2): p1(p1), p2(p2){
+            middle = RoboCompLidar3D::TPoint{(p1.x+p2.x)/2, (p1.y+p2.y)/2, (p1.z+p2.z)/2,
+                                             (p1.intensity+p2.intensity)/2, (p1.phi+p2.phi)/2,
+                                             (p1.theta+p2.theta)/2, (p1.r+p2.r)/2};
+        }
+        bool operator==(const Door& other) const{
+            return std::hypot(this->middle.x - other.middle.x , this->middle.y - other.middle.y ) < 400;
+        }
     };
 
     using Doors = std::vector<Door>;
