@@ -29,6 +29,7 @@
 
 #include <genericworker.h>
 #include <abstract_graphic_viewer/abstract_graphic_viewer.h>
+#include "Door.h"
 
 #define CENTRAL_POINTS_DIFF 300
 
@@ -68,18 +69,7 @@ private:
         RoboCompLidar3D::TPoints low, middle, high;
     };
 
-    struct Door
-    {
-        RoboCompLidar3D::TPoint p1, p2, middle;
-        Door(const RoboCompLidar3D::TPoint& p1, const RoboCompLidar3D::TPoint& p2): p1(p1), p2(p2){
-            middle = RoboCompLidar3D::TPoint{(p1.x+p2.x)/2, (p1.y+p2.y)/2, (p1.z+p2.z)/2,
-                                             (p1.intensity+p2.intensity)/2, (p1.phi+p2.phi)/2,
-                                             (p1.theta+p2.theta)/2, (p1.r+p2.r)/2};
-        }
-        bool operator==(const Door& other) const{
-            return std::hypot(this->middle.x - other.middle.x , this->middle.y - other.middle.y ) < 400;
-        }
-    };
+
 
     using Doors = std::vector<Door>;
 
@@ -90,8 +80,12 @@ private:
     bool startup_check_flag;
     AbstractGraphicViewer* viewer;
 
-    enum class Estado {IDLE, FOLLOW_WALL, STRAIGHT_LINE, TURN, SPIRAL};
-    Estado estado = Estado::STRAIGHT_LINE;
+    enum class Estado {IDLE, FOLLOW_WALL, STRAIGHT_LINE, TURN, SPIRAL, FIND_DOOR, PASS_DOOR};
+//    Estado estado = Estado::STRAIGHT_LINE;
+    Estado estado = Estado::FIND_DOOR;
+    Door target_door;
+
+
 
     Estado straight_line(const RoboCompLidar3D::TPoint& closest_element);
     Estado follow_wall(const RoboCompLidar3D::TPoint& closest_wall_point, const RoboCompLidar3D::TPoint& closest_forward_point);
@@ -126,6 +120,14 @@ private:
     void draw_lines(const Lines &lines, AbstractGraphicViewer *viewer);
 
     bool point_present(const RoboCompLidar3D::TPoint &point, const Lines &lines);
+
+    Estado find_door();
+
+    Estado pass_door();
+
+    Estado find_door(Doors doors);
+
+    Estado pass_door(Doors doors);
 };
 
 #endif

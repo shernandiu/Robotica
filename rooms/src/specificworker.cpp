@@ -229,13 +229,13 @@ void SpecificWorker::compute() {
 
     draw_lines(lines, viewer);
     draw_doors(doors, viewer);
-/*
+
 //    if (number_turns == 4) {
 //        number_turns = 0;
 //        MIN_DISTANCE += MIN_DISTANCE_STEP;
 //        this->loops++;
 //    }
-//    switch (estado) {
+    switch (estado) {
 //        case Estado::TURN:
 //            estado = turn(closePoints);
 //            break;
@@ -258,9 +258,16 @@ void SpecificWorker::compute() {
 //        case Estado::SPIRAL: {
 //            auto closest_forward_point = closestElement(forwardPoints);
 //            estado = spiral(closest_forward_point);
+//                break
 //        }
-//    }
- */
+        case Estado::FIND_DOOR:
+            estado = find_door(doors);
+            break;
+        case Estado::PASS_DOOR:
+            estado = pass_door(doors);
+            break;
+    }
+
 }
 
 SpecificWorker::Estado SpecificWorker::straight_line(const RoboCompLidar3D::TPoint& closest_element) {
@@ -431,7 +438,47 @@ SpecificWorker::Estado SpecificWorker::spiral(const RoboCompLidar3D::TPoint& clo
         return Estado::STRAIGHT_LINE;
     }
 }
+SpecificWorker::Estado SpecificWorker::find_door(Doors doors){
+    if (doors.size() == 0){
+        omnirobot_proxy->setSpeedBase(1,0,0);
+        return Estado::FIND_DOOR;
+    }
+    target_door = doors[0];
+    return  Estado::PASS_DOOR;
+}
 
+SpecificWorker::Estado SpecificWorker::pass_door(Doors doors){
+    auto door_it = std::ranges::find(doors, target_door);
+
+    if (door_it == doors.end()){
+        return Estado::FIND_DOOR;
+    }
+    target_door = *door_it;
+
+    double v_x = target_door.middle.x;
+    double v_y = target_door.middle.y;
+    double distance = target_door.middle.distance2d;
+
+    double angle = std::atan2(target_door.middle.y, target_door.middle.x);
+    double rel_angle = angle - M_PI/2;
+
+    double THRESHOLD = DEGREE_TO_RADIAN(30);
+    double rot_speed = std::abs(rel_angle) > THRESHOLD ? 1 : 1 / (THRESHOLD * THRESHOLD) * rel_angle * rel_angle;
+
+    v_x = v_x/distance*MAX_FORWARD_SPEED * std::abs(rot_speed-1);
+    v_y = v_y/distance*MAX_FORWARD_SPEED * std::abs(rot_speed-1);
+
+    if (rel_angle < 0 ) rot_speed = -rot_speed;
+
+    qInfo() << "PASS DOOR\n"
+       "\t Target door x: " << target_door.middle.x <<"\n"
+       "\t Target door y: " << target_door.middle.y <<"\n"
+       "\t Rot Speed: " << rot_speed << "\n"
+       "\t Angle: " << angle*180/M_PI << "\n";
+
+    omnirobot_proxy->setSpeedBase(v_y, -v_x, rot_speed);
+    return Estado::PASS_DOOR;
+}
 int SpecificWorker::startup_check() {
     std::cout << "Startup check" << std::endl;
     QTimer::singleShot(200, qApp, SLOT(quit()));
@@ -547,12 +594,12 @@ SpecificWorker::Doors SpecificWorker::get_doors(const Lines& lines){
     auto dist = [](auto a, auto b) { return std::hypot(a.x-b.x, a.y-b.y); };
     auto near_door = [&doors, dist, THRESHOLD](auto d){
         for(auto &&old : doors) {
-        if(dist(old.p1, d.p1) < THRESHOLD or
-           dist(old.p2, d.p2) < THRESHOLD or
-           dist(old.p1, d.p2) < THRESHOLD or
-           dist(old.p2, d.p1) < THRESHOLD)
-            return true;
-        }
+            if(dist(old.p1, d.p1) < THRESHOLD or
+               dist(old.p2, d.p2) < THRESHOLD or
+               dist(old.p1, d.p2) < THRESHOLD or
+               dist(old.p2, d.p1) < THRESHOLD)
+                return true;
+            }
         return false;
     };
 

@@ -27,6 +27,7 @@ SET ( SOURCES
   genericmonitor.cpp
   commonbehaviorI.cpp
   genericworker.cpp
+        Door.h
 )
 
 
