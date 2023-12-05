@@ -80,9 +80,9 @@ private:
     bool startup_check_flag;
     AbstractGraphicViewer* viewer;
 
-    enum class Estado {IDLE, FOLLOW_WALL, STRAIGHT_LINE, TURN, SPIRAL, FIND_DOOR, PASS_DOOR, CROSS_DOOR};
+    enum class Estado {IDLE, FOLLOW_WALL, STRAIGHT_LINE, TURN, SPIRAL, FIND_DOOR, PASS_DOOR, CROSS_DOOR, GO_CENTER};
 //    Estado estado = Estado::STRAIGHT_LINE;
-    Estado estado = Estado::IDLE;
+    Estado estado = Estado::FIND_DOOR;
     Door target_door;
 
 
@@ -129,6 +129,8 @@ private:
     Estado cross_door(const RoboCompLidar3D::TPoint &point);
 
     RoboCompLidar3D::TPoint mean_point(const RoboCompLidar3D::TPoints& points);
+
+    Estado go_center(const RoboCompLidar3D::TPoints &points);
 };
 
 #endif

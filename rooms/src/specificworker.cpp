@@ -266,6 +266,9 @@ void SpecificWorker::compute() {
         case Estado::PASS_DOOR:
             estado = pass_door(doors);
             break;
+        case Estado::GO_CENTER:
+            estado = go_center(ldata);
+            break;
         case Estado::CROSS_DOOR: {
             RoboCompLidar3D::TPoints backpoints;
             std::ranges::copy_if(ldata, std::back_inserter(backpoints),
@@ -452,23 +455,38 @@ SpecificWorker::Estado SpecificWorker::find_door(const Doors& doors){
         omnirobot_proxy->setSpeedBase(1,0,0);
         return Estado::FIND_DOOR;
     }
-    target_door = doors[0];
+    target_door = *std::ranges::min_element(doors.begin(), doors.end(), [](const auto& a, const auto& b){
+        auto angle1 = std::abs(std::hypot(a.middle.x, a.middle.y)- DEGREE_TO_RADIAN(90));
+        auto angle2 = std::abs(std::hypot(b.middle.y, b.middle.x)- DEGREE_TO_RADIAN(90));
+        return angle1 < angle2;
+    });
     return  Estado::PASS_DOOR;
 }
 
 SpecificWorker::Estado SpecificWorker::pass_door(const Doors& doors){
+z
     auto door_it = std::ranges::find(doors, target_door);
 
     if (door_it == doors.end()){
         return Estado::CROSS_DOOR;
     }
     target_door = *door_it;
+    RoboCompLidar3D::TPoint vector{target_door.p2.x - target_door.p1.x, target_door.p2.y - target_door.p1.y};
+    auto distance_vector = std::hypot(vector.x, vector.y);
 
-    double v_x = target_door.middle.x;
-    double v_y = target_door.middle.y;
-    double distance = target_door.middle.distance2d;
+    RoboCompLidar3D::TPoint perpendicular{-vector.y/distance_vector*1000, vector.x/distance_vector*1000};
+    RoboCompLidar3D::TPoint p1 {target_door.middle.x+perpendicular.x, target_door.middle.y+perpendicular.y};
+    RoboCompLidar3D::TPoint p2 {target_door.middle.x-perpendicular.x, target_door.middle.y-perpendicular.y};
 
-    double angle = std::atan2(target_door.middle.y, target_door.middle.x);
+    auto target = std::min(p1, p2, [](const auto& a, const auto& b){
+        return std::hypot(a.x,a.y) < std::hypot(b.x,b.y);
+    });
+
+    double v_x = target.x;
+    double v_y = target.y;
+    double distance = std::hypot(target.x, target.y);
+
+    double angle = std::atan2(target.y, target.x);
     double rel_angle = angle - M_PI/2;
 
     double THRESHOLD = DEGREE_TO_RADIAN(30);
@@ -480,8 +498,8 @@ SpecificWorker::Estado SpecificWorker::pass_door(const Doors& doors){
     if (rel_angle < 0 ) rot_speed = -rot_speed;
 
     qInfo() << "PASS DOOR\n"
-       "\t Target door x: " << target_door.middle.x <<"\n"
-       "\t Target door y: " << target_door.middle.y <<"\n"
+       "\t Target door x: " << target.x <<"\n"
+       "\t Target door y: " << target.y <<"\n"
        "\t Rot Speed: " << rot_speed << "\n"
        "\t Angle: " << angle*180/M_PI << "\n";
 
@@ -623,7 +641,7 @@ SpecificWorker::Doors SpecificWorker::get_doors(const Lines& lines){
         auto dist = std::hypot( par[1].x-par[0].x, par[1].y-par[0].y);
         if( dist < 1500 && dist > 500 ){
             auto door = Door{par[0],par[1]};
-            if(not near_door(door) && point_present(par[0], lines) && point_present(par[1], lines))
+            if(not near_door(door) /*&& point_present(par[0], lines) && point_present(par[1], lines)*/)
                 doors.push_back(door);
         }
     }
@@ -646,12 +664,37 @@ SpecificWorker::Estado SpecificWorker::cross_door(const RoboCompLidar3D::TPoint 
         omnirobot_proxy->setSpeedBase(1, 0, 0);
         return Estado::CROSS_DOOR;
     }
-    return Estado::FIND_DOOR;
+    return Estado::GO_CENTER;
+}
+
+SpecificWorker::Estado SpecificWorker::go_center(const RoboCompLidar3D::TPoints &points) {
+    auto center = mean_point(points);
+    auto distance = std::hypot(center.x, center.y);
+
+    constexpr auto slope = (MAX_FORWARD_SPEED - MIN_FORWARD_SPEED) / SLOW_DISTANCE;
+
+    auto speed = distance > (500 + SLOW_DISTANCE) ? MAX_FORWARD_SPEED :
+                 slope * distance + MIN_FORWARD_SPEED - slope*500;
+
+    auto vx = center.x*speed/distance;
+    auto vy = center.y*speed/distance;
+
+    qInfo() << "GO_CENTER\n"
+               "\t Distance: " << distance <<
+               "\t Speed: "<< speed << "\n";
+
+    if (distance < 500) {
+        omnirobot_proxy->setSpeedBase(1, 0, 0);
+        return Estado::FIND_DOOR;
+    }
+    omnirobot_proxy->setSpeedBase(vy, -vx, 0);
+    return Estado::GO_CENTER;
 }
 
 RoboCompLidar3D::TPoint SpecificWorker::mean_point(const RoboCompLidar3D::TPoints &points) {
     RoboCompLidar3D::TPoint point =  std::accumulate(points.begin(),points.end(), RoboCompLidar3D::TPoint{0,0},
         [&](const auto& a, const auto& b){
+            auto distance = std::hypot(a.x, a.y);
             return RoboCompLidar3D::TPoint{a.x+b.x, a.y+b.y};
     });
     point.x /= points.size();
@@ -659,6 +702,8 @@ RoboCompLidar3D::TPoint SpecificWorker::mean_point(const RoboCompLidar3D::TPoint
 
     return point;
 }
+
+
 
 /**************************************/
 // From the RoboCompLidar3D you can call this methods:
