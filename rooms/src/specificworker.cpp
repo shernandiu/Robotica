@@ -22,6 +22,7 @@
 #include <cppitertools/combinations.hpp>
 
 #define DEGREE_TO_RADIAN(x) x * (M_PI / 180)
+#define RADIAN_TO_DEGREE(x) x * (180 / M_PI)
 
 /**
 * \brief Default constructor
@@ -158,9 +159,9 @@ SpecificWorker::Lines SpecificWorker::extract_lines(const RoboCompLidar3D::TPoin
     const float LOW_LOW = 0;
     const float LOW_HIGH = 800;
     const float MIDDLE_LOW = 800;
-    const float MIDDLE_HIGH = 1500;
-    const float HIGH_LOW = 1600;
-    const float HIGH_HIGH = 2000;
+    const float MIDDLE_HIGH = 1000;
+    const float HIGH_LOW = 1000;
+    const float HIGH_HIGH = 2500;
 
     for(const auto &p: points) {
         if(p.z > LOW_LOW and p.z < LOW_HIGH)
@@ -205,28 +206,24 @@ SpecificWorker::Lines SpecificWorker::extract_peaks(const SpecificWorker::Lines 
 void SpecificWorker::compute() {
     RoboCompLidar3D::TPoints ldata;
     try {
-        ldata = lidar3d_proxy->getLidarData("bpearl", 0, 2 * M_PI, 1).points;
+        ldata = lidar3d_proxy->getLidarData("helios", 0, 2 * M_PI, 1).points;
     }
     catch (const Ice::Exception& e) {
         std::cout << "Error reading from Camera" << e << std::endl;
         return;
     }
-//    detectDoors();
 
     auto vectorPoints = filterLidarPoints(ldata);
     if (vectorPoints.empty()) return;
 
     auto closePoints = filterClosePoints(vectorPoints);
     auto forwardPoints = filterForwardPoints(vectorPoints);
-    draw_lidar(ldata, viewer, forwardPoints, closePoints);
 
-
-//    auto three_heights = filterLidarPointsFI(vectorPoints);
     auto three_heights = extract_lines(vectorPoints);
     auto lines = extract_peaks(three_heights);
     auto doors = get_doors(lines);
-//    omnirobot_proxy->setSpeedBase(0,0,0);
 
+    draw_lidar(three_heights, viewer, forwardPoints, closePoints);
     draw_lines(lines, viewer);
     draw_doors(doors, viewer);
 
@@ -236,30 +233,8 @@ void SpecificWorker::compute() {
 //        this->loops++;
 //    }
     switch (estado) {
-//        case Estado::TURN:
-//            estado = turn(closePoints);
-//            break;
-//        case Estado::STRAIGHT_LINE: {
-//            auto closest_point = closestElement(vectorPoints);
-//            estado = straight_line(closest_point);
-//            break;
-//        }
-//        case Estado::FOLLOW_WALL: {
-//            auto wallPoints = filterForwardPoints(vectorPoints, 0, DEGREE_TO_RADIAN(5));
-//            if (!forwardPoints.empty() && !wallPoints.empty()) {
-//                auto closest_wall_point = closestElement(wallPoints);
-//                auto closest_forward_point = closestElement(forwardPoints);
-//                estado = follow_wall(closest_wall_point, closest_forward_point);
-//                break;
-//            }
-//        }
-//        case Estado::IDLE:
-//            break;
-//        case Estado::SPIRAL: {
-//            auto closest_forward_point = closestElement(forwardPoints);
-//            estado = spiral(closest_forward_point);
-//                break
-//        }
+        case Estado::IDLE:
+            break;
         case Estado::FIND_DOOR:
             estado = find_door(doors);
             break;
@@ -278,199 +253,126 @@ void SpecificWorker::compute() {
             estado = cross_door(closest_point);
             break;
         }
+        case Estado::ALIGN:
+            estado = align_door(doors);
+            break;
     }
 
 }
 
-SpecificWorker::Estado SpecificWorker::straight_line(const RoboCompLidar3D::TPoint& closest_element) {
-    static enum { RESET, FORWARD, BACKWARD} dir = RESET;
-    static RoboCompLidar3D::TPoint last_point = closest_element;
-
-    // Min distance is bigger than the room
-    if (closest_element.x * last_point.x < 0 && closest_element.y * last_point.y < 0)
-        return Estado::SPIRAL;
-    last_point=closest_element;
-
-    auto distance = std::hypot(closest_element.x, closest_element.y);
-    if (number_turns == 3) distance -= MIN_DISTANCE_STEP;
-
-    const auto raw_distance = distance;
-    if (dir == RESET)
-        dir = distance > MIN_DISTANCE ? FORWARD : BACKWARD;
-    if (dir == BACKWARD)
-        distance = 2*MIN_DISTANCE - distance;   // distance relative to MIN_DIST
-
-    const float speed = calculateSpeed(distance);
-    float speed_x = speed * closest_element.x/raw_distance;
-    float speed_y = speed * closest_element.y/raw_distance;
-
-    if (dir==BACKWARD) {
-        speed_x = -speed_x;
-        speed_y = -speed_y;
+void SpecificWorker::move_robot(float advx, float advy, float rot)
+{
+    try
+    {
+        omnirobot_proxy->setSpeedBase(advx, advy, rot);
     }
-    qInfo() << "STRAIGHT LINE\n" <<
-        "\t State:" << dir << "\n" <<
-        "\t Closest element:" << distance<<"\n" <<
-        "\t x:" << closest_element.x<<"\n" <<
-        "\t y:" << closest_element.y<<"\n" <<
-        "\t Distance:" << MIN_DISTANCE<<"\n" <<
-        "\t Speed: " << speed<<"\n" <<
-        "\t Speed x: " << speed_x<<"\n" <<
-        "\t Speed y: " << speed_y<<"\n" <<
-        "\t Loops:" <<loops<<"\n";
+    catch(const Ice::Exception &e){ std::cout << e << std::endl;}
+}
 
-    try {
-        if (distance < MIN_DISTANCE) {
-            dir = RESET;
-            omnirobot_proxy->setSpeedBase(0, 0, 0);
-            return Estado::TURN;
+void SpecificWorker::state_machine(const Doors &doors)
+{
+    switch (state)
+    {
+        case States::IDLE:
+        {
+            move_robot(0,0,0);
+            break;
         }
-        else {
-            omnirobot_proxy->setSpeedBase(speed_y, -speed_x, 0);
-            return  Estado::STRAIGHT_LINE;
+        case States::SEARCH_DOOR:
+        {
+            //qInfo() << "SEARCH_DOOR";
+            if(not doors.empty())
+            {
+//                door_target = doors[0];
+//                move_robot(0,0,0);
+//                state = States::GOTO_DOOR;
+//                qInfo() << "First found";
+                //door_target.print();
+            }
+            else
+                move_robot(0,0,0.3);
+            break;
+        }
+        case States::GOTO_DOOR:
+        {
+            //Info() << "GOTO_DOOR";
+            //qInfo() << "distance " << door_target.dist_to_robot();
+//            if(door_target.perp_dist_to_robot() < consts.DOOR_PROXIMITY_THRESHOLD)
+//            {
+//                move_robot(0,0,0);
+//                qInfo() << "GOTO_DOOR Target achieved";
+//                state = States::ALIGN;
+//            }
+//            else    // do what you have to do and stay in this state
+//            {
+//                float rot = -0.5 * door_target.perp_angle_to_robot();
+//                float adv = consts.MAX_ADV_SPEED * break_adv(door_target.perp_dist_to_robot()) *
+//                            break_rot(door_target.perp_angle_to_robot()) / 1000.f;
+//                move_robot(0, adv, rot);
+//            }
+            break;
+        }
+        case States::ALIGN:
+        {
+//            if( fabs(door_target.angle_to_robot()) < 0.01)
+//            {
+//                move_robot(0,0,0);
+//                state = States::GO_THROUGH;
+//                return;
+//            }
+//            //qInfo() << door_target.angle_to_robot();
+//            float rot = -0.4 * door_target.angle_to_robot();
+//            move_robot(0,0,rot);
+            break;
+        }
+        case States::GO_THROUGH:
+        {
+            move_robot(0,0,0);
+            break;
         }
     }
-    catch (const Ice::Exception &e) {
-        std::cout << "Error controlling robot" << e << std::endl;
-        return Estado::IDLE;
-    }
 }
 
-SpecificWorker::Estado SpecificWorker::turn(const RoboCompLidar3D::TPoints& points) {
-    static enum {RESET, FORWARD, BACKWARD} dir = RESET;
+SpecificWorker::Estado SpecificWorker::align_door(const Doors& doors){
+    auto door_it = std::ranges::find(doors, target_door);
+    target_door = *door_it;
 
-    auto first_point = points[points.size()/2 - CENTRAL_POINTS_DIFF+ loops*10];
-    auto last_point = points[points.size()/2];
+    auto angle = target_door.get_angle();
+    qInfo() << "ALIGN DOOR";
+    qInfo() << RADIAN_TO_DEGREE(angle) <<"\n";
 
-    if (dir == RESET)
-        dir = first_point.y > 0 ? FORWARD : BACKWARD;
-    
-    const auto y_diff = last_point.y - first_point.y;
-    const auto x_diff = last_point.x-first_point.x;
-    const auto angle = std::abs(std::atan2(y_diff, x_diff));
-    const auto abs_angle = angle < M_PI/2 ? angle : M_PI-angle;
-    const auto rotation_speed = static_cast<float>(calculateRotationSpeed(abs_angle));
 
-    qInfo() << "TURN\n" <<
-        "\t Angle: " << angle*180/M_PI<<"\n" <<
-        "\t Abs Angle: " << abs_angle*180/M_PI<<"\n" <<
-        "\t X diff: " << x_diff<<"\n" <<
-        "\t Turns: " << number_turns << "\n" <<
-        "\t Distance: " << MIN_DISTANCE<<"\n" <<
-        "\t Speed: " << rotation_speed <<"\n" <<
-        "\t Loops:" <<loops<<"\n";
-    try {
-        if (dir==FORWARD && angle < M_PI/2) {
-            omnirobot_proxy->setSpeedBase(0, 0, rotation_speed);
-            return Estado::TURN;
-        } if (dir == BACKWARD && angle > M_PI/2) {
-            omnirobot_proxy->setSpeedBase(0, 0, -rotation_speed);
-            return Estado::TURN;
-        } else {
-            omnirobot_proxy->setSpeedBase(0, 0, 0);
-            dir = RESET;
-            return (loops < MIN_LOOPS_SPIRAL || std::rand()%SPIRAL_PROBABILITY !=0) ?
-                Estado::FOLLOW_WALL : Estado::SPIRAL;
+    if( fabs(angle- DEGREE_TO_RADIAN(90)) < 0.1) {
+        move_robot(0,0,0);
+        return Estado::CROSS_DOOR;
         }
-    } catch (const Ice::Exception &e) {
-        std::cout << "Error controlling robot" << e << std::endl;
-        return Estado::IDLE;
-    }
+    float rot = 0.4 * (angle-DEGREE_TO_RADIAN(90));
+    move_robot(0,0,rot);
+    return Estado::ALIGN;
 }
 
-SpecificWorker::Estado SpecificWorker::follow_wall(const RoboCompLidar3D::TPoint& closest_wall_point, const RoboCompLidar3D::TPoint& closest_forward_point) {
-    constexpr float THRESHOLD = 100;
-    static RoboCompLidar3D::TPoint last_fw_point = closest_forward_point;
-    static RoboCompLidar3D::TPoint last_wl_point = closest_wall_point;
-
-    // Min distance is bigger than the room
-    if ((last_fw_point.x * closest_forward_point.x < 0 && last_fw_point.y * closest_forward_point.y < 0) ||
-        (last_wl_point.x * closest_wall_point.x < 0 && last_wl_point.y * closest_wall_point.y < 0))
-        return Estado::SPIRAL;
-
-    last_fw_point = closest_forward_point;
-    last_wl_point = closest_wall_point;
-
-    auto distance = std::hypot(closest_forward_point.x, closest_forward_point.y);
-    const auto wall_distance = std::hypot(closest_wall_point.x, closest_wall_point.y);
-    if (number_turns == 3) distance -= MIN_DISTANCE_STEP;
-
-    const float forward_speed = calculateSpeed(distance);
-    const auto rel_distance = wall_distance - MIN_DISTANCE;
-    const float lateral_speed = std::abs(rel_distance)>THRESHOLD ? LATERAL_SPEED :  
-            LATERAL_SPEED/(THRESHOLD*THRESHOLD)*rel_distance*rel_distance;
-
-    qInfo() << "FOLLOW WALL\n"
-            "\t Wall point: " << std::hypot(closest_wall_point.x, closest_wall_point.y) <<"\n"
-            "\t Forward point: " << std::hypot(closest_forward_point.x, closest_forward_point.y) <<"\n"
-            "\t Distance: " << distance <<"\n"
-            "\t Turns: " << number_turns << "\n"
-            "\t Distance: " << MIN_DISTANCE <<"\n"
-            "\t Speed: " << forward_speed << "\n"
-            "\t Lat Speed: " << lateral_speed << "\n"
-            "\t Loops:" <<loops<<"\n";
-    try {
-        if (distance < MIN_DISTANCE) {
-            number_turns++;
-            omnirobot_proxy->setSpeedBase(0, 0, ROTATION_SPEED);
-            return Estado::TURN;
-        }
-        omnirobot_proxy->setSpeedBase(forward_speed,
-                                      rel_distance < 0 ? lateral_speed : -lateral_speed,
-                                      0);
-        return  Estado::FOLLOW_WALL;
-    }
-    catch (const Ice::Exception &e) {
-        std::cout << "Error controlling robot" << e << std::endl;
-        return Estado::IDLE;
-    }
-}
-
-SpecificWorker::Estado SpecificWorker::spiral(const RoboCompLidar3D::TPoint& closest_point) {
-    static enum Dir { RESET=-1, CLOCKWISE=0, ANTICLOCKWISE=1 } dir = RESET;
-    static float rotation_speed_inverse = 1.0 / SPIRAL_ROTATION_SPEED;
-    if (dir == RESET) {
-        rotation_speed_inverse = 1.0 / SPIRAL_ROTATION_SPEED;
-        dir = static_cast<Dir>(rand() % 2);
-    }
-    const auto rotation_speed = (dir == ANTICLOCKWISE ? 1.0 : -1.0) / rotation_speed_inverse;
-    rotation_speed_inverse += SPIRAL_ROTATION_INC;
-    qInfo() << "SPIRAL\n"
-               "\t Speed: " << SPIRAL_FORWARD_SPEED <<"\n"
-               "\t Rot Speed: " << rotation_speed_inverse << "\n"
-               "\t V: " << rotation_speed << "\n"
-               "\t Turns: " << number_turns << "\n"
-               "\t Loops:" <<loops<<"\n"; 
-    if (std::hypot(closest_point.x, closest_point.y) > 1000) {
-        omnirobot_proxy->setSpeedBase(SPIRAL_FORWARD_SPEED , 0, rotation_speed);
-        return Estado::SPIRAL;
-    } else {
-        omnirobot_proxy->setSpeedBase(0, 0, 0);
-        dir = RESET;
-        return Estado::STRAIGHT_LINE;
-    }
-}
 SpecificWorker::Estado SpecificWorker::find_door(const Doors& doors){
     if (doors.size() == 0){
         omnirobot_proxy->setSpeedBase(1,0,0);
         return Estado::FIND_DOOR;
     }
-    target_door = *std::ranges::min_element(doors.begin(), doors.end(), [](const auto& a, const auto& b){
-        auto angle1 = std::abs(std::hypot(a.middle.x, a.middle.y)- DEGREE_TO_RADIAN(90));
-        auto angle2 = std::abs(std::hypot(b.middle.y, b.middle.x)- DEGREE_TO_RADIAN(90));
+    target_door = *std::ranges::min_element(doors.begin(), doors.end(), [](const Door& a, const Door& b){
+        auto angle1 = std::abs(a.get_angle() - DEGREE_TO_RADIAN(90));
+        auto angle2 = std::abs(b.get_angle() - DEGREE_TO_RADIAN(90));
         return angle1 < angle2;
     });
     return  Estado::PASS_DOOR;
 }
 
 SpecificWorker::Estado SpecificWorker::pass_door(const Doors& doors){
-z
-    auto door_it = std::ranges::find(doors, target_door);
 
+    auto door_it = std::ranges::find(doors, target_door);
     if (door_it == doors.end()){
-        return Estado::CROSS_DOOR;
+        return Estado::FIND_DOOR;
     }
+
     target_door = *door_it;
+
     RoboCompLidar3D::TPoint vector{target_door.p2.x - target_door.p1.x, target_door.p2.y - target_door.p1.y};
     auto distance_vector = std::hypot(vector.x, vector.y);
 
@@ -495,15 +397,24 @@ z
     v_y = v_y/distance*MAX_FORWARD_SPEED * std::abs(rot_speed-1);
     rot_speed = std::min(rot_speed*5, 1.0);
 
-    if (rel_angle < 0 ) rot_speed = -rot_speed;
+//    if (rel_angle < 0 ) rot_speed = -rot_speed;
+
+    if (std::hypot(target.x, target.y) < 1000){
+        return Estado::ALIGN;
+    }
+    float rot = 0.5 * rel_angle;
 
     qInfo() << "PASS DOOR\n"
        "\t Target door x: " << target.x <<"\n"
        "\t Target door y: " << target.y <<"\n"
-       "\t Rot Speed: " << rot_speed << "\n"
+       "\t Rot Speed: " << rot << "\n"
        "\t Angle: " << angle*180/M_PI << "\n";
 
-    omnirobot_proxy->setSpeedBase(v_y,  -5* v_x, rot_speed);
+
+//    float adv = consts.MAX_ADV_SPEED * break_adv(door_target.perp_dist_to_robot()) *
+//            break_rot(door_target.perp_angle_to_robot()) / 1000.f;
+
+    move_robot(v_y,  0, rot);
     return Estado::PASS_DOOR;
 }
 int SpecificWorker::startup_check() {
@@ -512,14 +423,14 @@ int SpecificWorker::startup_check() {
     return 0;
 }
 
-void SpecificWorker::draw_lidar(const RoboCompLidar3D::TPoints& points, AbstractGraphicViewer *scene,
+void SpecificWorker::draw_lidar(const Lines& points, AbstractGraphicViewer *scene,
                                 const RoboCompLidar3D::TPoints& forward_points,
                                 const RoboCompLidar3D::TPoints& close_points) {
     static std::vector<QGraphicsItem *> borrar;
     std::ranges::for_each(borrar,[this](auto& a) {viewer->scene.removeItem(a); delete a;});
     borrar.clear();
 
-    for (const auto &p: points) {
+    for (const auto &p: points.high) {
         QColor color;
 
         color.setNamedColor("Red");
@@ -547,26 +458,9 @@ void SpecificWorker::draw_lidar(const RoboCompLidar3D::TPoints& points, Abstract
         borrar.push_back(point);
     }
 
-    auto p = points[close_points.size()/2];
+
+    auto m_point = mean_point(points.low);
     auto point = viewer->scene.addRect(-50, -50, 100, 100,
-                                       QPen(QColor("Magenta")),
-                                       QBrush(QColor("Magenta")));
-    point->setPos(p.x, p.y);
-    borrar.push_back(point);
-
-    try {
-        p = close_points.at(close_points.size() / 2 - CENTRAL_POINTS_DIFF + loops*10);
-        point = viewer->scene.addRect(-50, -50, 100, 100,
-                                      QPen(QColor("Yellow")),
-                                      QBrush(QColor("Yellow")));
-        point->setPos(p.x, p.y);
-        borrar.push_back(point);
-    } catch (const std::out_of_range &e) {
-        
-    }
-
-    auto m_point = mean_point(points);
-    point = viewer->scene.addRect(-50, -50, 100, 100,
                                        QPen(QColor("Green")),
                                        QBrush(QColor("Green")));
     point->setPos(m_point.x, m_point.y);
@@ -606,20 +500,20 @@ void SpecificWorker::draw_lines(const Lines& lines, AbstractGraphicViewer *viewe
         point->setPos(line.x, line.y);
         borrar.push_back(point);
     }
-    for(const auto& line : lines.middle) {
-        auto point = viewer->scene.addRect(0,0, 100, 100,
-                                           QPen("Orange"),
-                                           QBrush("Orange"));
-        point->setPos(line.x, line.y);
-        borrar.push_back(point);
-    }
-    for(const auto& line : lines.high) {
-        auto point = viewer->scene.addRect(0,0, 100, 100,
-                                           QPen("Purple"),
-                                           QBrush("Purple"));
-        point->setPos(line.x, line.y);
-        borrar.push_back(point);
-    }
+//    for(const auto& line : lines.middle) {
+//        auto point = viewer->scene.addRect(0,0, 100, 100,
+//                                           QPen("Orange"),
+//                                           QBrush("Orange"));
+//        point->setPos(line.x, line.y);
+//        borrar.push_back(point);
+//    }
+//    for(const auto& line : lines.high) {
+//        auto point = viewer->scene.addRect(0,0, 100, 100,
+//                                           QPen("Purple"),
+//                                           QBrush("Purple"));
+//        point->setPos(line.x, line.y);
+//        borrar.push_back(point);
+//    }
 }
 
 SpecificWorker::Doors SpecificWorker::get_doors(const Lines& lines){
@@ -655,16 +549,34 @@ bool SpecificWorker::point_present(const RoboCompLidar3D::TPoint& point, const L
 }
 
 SpecificWorker::Estado SpecificWorker::cross_door(const RoboCompLidar3D::TPoint &point) {
-    double distance = std::hypot(point.x, point.y);
+//    double distance = std::hypot(point.x, point.y);
+    static auto time = std::chrono::system_clock::now();
+    static bool reset = true;
 
-    qInfo() << "CROSS DOOR\n"
-    "\t Distance: " << distance << "\n";
-
-    if (distance < 900) {
-        omnirobot_proxy->setSpeedBase(1, 0, 0);
-        return Estado::CROSS_DOOR;
+    if (reset){
+        reset = false;
+        time = std::chrono::system_clock::now() + 3s;
     }
-    return Estado::GO_CENTER;
+    auto diff = time - std::chrono::system_clock::now();
+    qInfo() << "CROSS DOOR";
+//    qInfo() << "Diff:" << diff. << "\n";
+    if (diff < 0s){
+        reset = true;
+        move_robot(0,0,0);
+        return Estado::FIND_DOOR;
+    }
+    move_robot(3,0,0);
+    return Estado::CROSS_DOOR;
+
+//    "\t Distance: " << distance << "\n";
+//    if (distance < 900) {
+//        omnirobot_proxy->setSpeedBase(1, 0, 0);
+//        return Estado::CROSS_DOOR;
+//    }
+//    return Estado::GO_CENTER;
+
+
+
 }
 
 SpecificWorker::Estado SpecificWorker::go_center(const RoboCompLidar3D::TPoints &points) {

@@ -80,17 +80,13 @@ private:
     bool startup_check_flag;
     AbstractGraphicViewer* viewer;
 
-    enum class Estado {IDLE, FOLLOW_WALL, STRAIGHT_LINE, TURN, SPIRAL, FIND_DOOR, PASS_DOOR, CROSS_DOOR, GO_CENTER};
+    enum class Estado {IDLE, FIND_DOOR, PASS_DOOR, CROSS_DOOR, GO_CENTER, ALIGN};
 //    Estado estado = Estado::STRAIGHT_LINE;
     Estado estado = Estado::FIND_DOOR;
     Door target_door;
+    enum class States{ IDLE, SEARCH_DOOR, GOTO_DOOR, GO_THROUGH, ALIGN};
 
 
-
-    Estado straight_line(const RoboCompLidar3D::TPoint& closest_element);
-    Estado follow_wall(const RoboCompLidar3D::TPoint& closest_wall_point, const RoboCompLidar3D::TPoint& closest_forward_point);
-    Estado turn(const RoboCompLidar3D::TPoints& points);
-    Estado spiral(const RoboCompLidar3D::TPoint& closest_point);
 
     // filters points too high collected by Lidar
     RoboCompLidar3D::TPoints filterLidarPoints(const RoboCompLidar3D::TPoints& points);
@@ -100,8 +96,6 @@ private:
     double calculateSpeed(double distance) const;
     double calculateRotationSpeed(double angle) const;
 
-    void draw_lidar(const RoboCompLidar3D::TPoints& points, AbstractGraphicViewer *scene,
-                    const RoboCompLidar3D::TPoints& forward_points, const RoboCompLidar3D::TPoints& close_points);
 
     RoboCompLidar3D::TPoints
     filterForwardPoints(const RoboCompLidar3D::TPoints &points, double ref_angle, double threshold);
@@ -131,6 +125,18 @@ private:
     RoboCompLidar3D::TPoint mean_point(const RoboCompLidar3D::TPoints& points);
 
     Estado go_center(const RoboCompLidar3D::TPoints &points);
+
+    States state = States::SEARCH_DOOR;
+    void state_machine(const Doors &doors);
+
+    void move_robot(float side, float adv, float rot);
+
+    void draw_lidar(const Lines &points, AbstractGraphicViewer *scene, const RoboCompLidar3D::TPoints &forward_points,
+                    const RoboCompLidar3D::TPoints &close_points);
+
+    Estado align_door();
+
+    Estado align_door(const Doors &doors);
 };
 
 #endif

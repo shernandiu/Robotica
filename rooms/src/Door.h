@@ -18,6 +18,9 @@ struct Door {
     bool operator==(const Door& other) const{
         return std::hypot(this->middle.x - other.middle.x , this->middle.y - other.middle.y ) < THRESHOLD;
     }
+    double get_angle() const{
+        return std::atan2(middle.y, middle.x);
+    }
 };
 
 
