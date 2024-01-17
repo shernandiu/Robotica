@@ -28,6 +28,7 @@ SET ( SOURCES
   commonbehaviorI.cpp
   genericworker.cpp
         Door.h
+        Graph.cpp
 )
 
 

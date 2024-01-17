@@ -212,6 +212,8 @@ void SpecificWorker::compute() {
         std::cout << "Error reading from Camera" << e << std::endl;
         return;
     }
+    qInfo() << "Graph:";
+    graph.print();
 
     auto vectorPoints = filterLidarPoints(ldata);
     if (vectorPoints.empty()) return;
@@ -251,6 +253,11 @@ void SpecificWorker::compute() {
                                      return a.y<800;});
             auto closest_point = closestElement(backpoints);
             estado = cross_door(closest_point);
+            if (estado == Estado::FIND_DOOR && current_room < 4){
+                graph.add_node();
+                graph.add_edge(current_room, (current_room+1)%4);
+                current_room++;
+            }
             break;
         }
         case Estado::ALIGN:
@@ -267,70 +274,6 @@ void SpecificWorker::move_robot(float advx, float advy, float rot)
         omnirobot_proxy->setSpeedBase(advx, advy, rot);
     }
     catch(const Ice::Exception &e){ std::cout << e << std::endl;}
-}
-
-void SpecificWorker::state_machine(const Doors &doors)
-{
-    switch (state)
-    {
-        case States::IDLE:
-        {
-            move_robot(0,0,0);
-            break;
-        }
-        case States::SEARCH_DOOR:
-        {
-            //qInfo() << "SEARCH_DOOR";
-            if(not doors.empty())
-            {
-//                door_target = doors[0];
-//                move_robot(0,0,0);
-//                state = States::GOTO_DOOR;
-//                qInfo() << "First found";
-                //door_target.print();
-            }
-            else
-                move_robot(0,0,0.3);
-            break;
-        }
-        case States::GOTO_DOOR:
-        {
-            //Info() << "GOTO_DOOR";
-            //qInfo() << "distance " << door_target.dist_to_robot();
-//            if(door_target.perp_dist_to_robot() < consts.DOOR_PROXIMITY_THRESHOLD)
-//            {
-//                move_robot(0,0,0);
-//                qInfo() << "GOTO_DOOR Target achieved";
-//                state = States::ALIGN;
-//            }
-//            else    // do what you have to do and stay in this state
-//            {
-//                float rot = -0.5 * door_target.perp_angle_to_robot();
-//                float adv = consts.MAX_ADV_SPEED * break_adv(door_target.perp_dist_to_robot()) *
-//                            break_rot(door_target.perp_angle_to_robot()) / 1000.f;
-//                move_robot(0, adv, rot);
-//            }
-            break;
-        }
-        case States::ALIGN:
-        {
-//            if( fabs(door_target.angle_to_robot()) < 0.01)
-//            {
-//                move_robot(0,0,0);
-//                state = States::GO_THROUGH;
-//                return;
-//            }
-//            //qInfo() << door_target.angle_to_robot();
-//            float rot = -0.4 * door_target.angle_to_robot();
-//            move_robot(0,0,rot);
-            break;
-        }
-        case States::GO_THROUGH:
-        {
-            move_robot(0,0,0);
-            break;
-        }
-    }
 }
 
 SpecificWorker::Estado SpecificWorker::align_door(const Doors& doors){
@@ -614,7 +557,6 @@ RoboCompLidar3D::TPoint SpecificWorker::mean_point(const RoboCompLidar3D::TPoint
 
     return point;
 }
-
 
 
 /**************************************/

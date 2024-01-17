@@ -30,6 +30,7 @@
 #include <genericworker.h>
 #include <abstract_graphic_viewer/abstract_graphic_viewer.h>
 #include "Door.h"
+#include "Graph.h"
 
 #define CENTRAL_POINTS_DIFF 300
 
@@ -69,7 +70,8 @@ private:
         RoboCompLidar3D::TPoints low, middle, high;
     };
 
-
+    Graph graph;
+    int current_room = 0;
 
     using Doors = std::vector<Door>;
 
@@ -127,16 +129,14 @@ private:
     Estado go_center(const RoboCompLidar3D::TPoints &points);
 
     States state = States::SEARCH_DOOR;
-    void state_machine(const Doors &doors);
 
     void move_robot(float side, float adv, float rot);
 
     void draw_lidar(const Lines &points, AbstractGraphicViewer *scene, const RoboCompLidar3D::TPoints &forward_points,
                     const RoboCompLidar3D::TPoints &close_points);
 
-    Estado align_door();
-
     Estado align_door(const Doors &doors);
+
 };
 
 #endif
